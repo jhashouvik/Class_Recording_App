@@ -19,8 +19,14 @@ st.set_page_config(page_title="DevOps Recordings", page_icon="🎥", layout="wid
 
 DRIVE_READONLY_SCOPE = "https://www.googleapis.com/auth/drive.readonly"
 
-# Streamlit Cloud sets STREAMLIT_SHARING_MODE=sharing; local dev does not.
-IS_CLOUD = os.getenv("STREAMLIT_SHARING_MODE", "") == "sharing"
+# Proxy is only viable when a local credentials file exists (i.e. running on a developer machine).
+# On Streamlit Cloud there is no local filesystem key, so use_proxy will be False at runtime.
+def _proxy_available() -> bool:
+    path = (
+        os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
+        or os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE", "").strip()
+    )
+    return bool(path) and os.path.isfile(path)
 
 
 def inject_app_css() -> None:
@@ -299,7 +305,7 @@ def inject_app_css() -> None:
     }
     .meta-pill span.icon { font-size: 0.85rem; }
 
-    /* ── Video player ── */
+    /* ── Video player (local proxy) ── */
     .stVideo {
         border-radius: 18px !important;
         overflow: hidden !important;
@@ -311,6 +317,31 @@ def inject_app_css() -> None:
         box-shadow: 0 32px 80px -12px rgba(8,145,178,0.28) !important;
     }
     .stVideo video { border-radius: 18px !important; }
+
+    /* ── Responsive Drive iframe embed (16:9) ── */
+    .drive-player-wrap {
+        position: relative;
+        width: 100%;
+        padding-bottom: 56.25%;
+        height: 0;
+        overflow: hidden;
+        border-radius: 18px;
+        border: 2px solid #e2e8f0;
+        box-shadow: 0 24px 64px -12px rgba(15,23,42,0.22);
+        transition: box-shadow 0.3s ease;
+        margin-bottom: 0.5rem;
+    }
+    .drive-player-wrap:hover {
+        box-shadow: 0 32px 80px -12px rgba(8,145,178,0.28);
+    }
+    .drive-player-wrap iframe {
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%;
+        height: 100%;
+        border: 0;
+        border-radius: 16px;
+    }
 
     /* ── Link buttons ── */
     [data-testid="stLinkButton"] a {
@@ -986,21 +1017,9 @@ with right:
     preview_url = drive_preview_url(selected["drive_link"])
     file_id = selected["id"]
 
-    has_auth = service_account_credentials() is not None or bool(API_KEY)
-    # Local proxy uses 127.0.0.1 which is unreachable from browsers on Streamlit Cloud.
-    # Use the Drive iframe embed on cloud; use the fast range-proxy locally.
-    if IS_CLOUD:
-        if not has_auth:
-            st.caption("Add credentials in Streamlit Cloud Secrets for in-app playback.")
-        st.components.v1.iframe(preview_url, height=560, scrolling=False)
-        st.markdown(
-            '<p class="action-hint">▶ Embedded Drive player — sign in with your Google account if prompted.</p>',
-            unsafe_allow_html=True,
-        )
-    elif not has_auth:
-        st.caption("Add a service account JSON (or API key for public files) for in-app playback.")
-        st.components.v1.iframe(preview_url, height=560, scrolling=False)
-    else:
+    # Use the local HTTP range proxy only when a credentials file exists on disk (local dev).
+    # On Streamlit Cloud the file doesn't exist, so we fall back to the responsive iframe embed.
+    if _proxy_available():
         try:
             stream_url = drive_stream_playback_url(file_id, API_KEY)
             st.video(stream_url)
@@ -1010,7 +1029,19 @@ with right:
             )
         except Exception as exc:
             st.error(f"Could not start playback stream: {exc}")
-            st.components.v1.iframe(preview_url, height=560, scrolling=False)
+            st.markdown(
+                f'<div class="drive-player-wrap"><iframe src="{preview_url}" allowfullscreen></iframe></div>',
+                unsafe_allow_html=True,
+            )
+    else:
+        st.markdown(
+            f'<div class="drive-player-wrap"><iframe src="{preview_url}" allowfullscreen></iframe></div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            '<p class="action-hint">▶ Embedded Drive player — sign in with your Google account if prompted.</p>',
+            unsafe_allow_html=True,
+        )
 
     st.markdown('<hr class="soft-divider">', unsafe_allow_html=True)
 
