@@ -695,30 +695,32 @@ def drive_stream_playback_url(file_id: str, api_key: str) -> str:
     return f"http://127.0.0.1:{port}/video/{quote(file_id, safe='')}"
 
 
-@st.cache_data(ttl=3000)  # cache for 50 min (SA tokens expire after 60 min)
-def _sa_access_token() -> str:
-    """Returns a valid service-account OAuth access token, refreshed automatically."""
+@st.cache_data(ttl=1800, max_entries=3, show_spinner="⏳ Loading recording…")
+def fetch_video_bytes(file_id: str) -> bytes:
+    """Fetch video content server-side using SA credentials.
+    Streamlit serves the bytes through its own internal media URL,
+    so the browser never needs a Google login or token.
+    Cached per file_id for 30 min; max 3 recordings held in memory at once.
+    """
     creds = service_account_credentials()
     if creds is None:
-        return ""
+        return b""
     try:
         creds.refresh(Request())
-        return creds.token or ""
     except Exception:
-        return ""
-
-
-def drive_cloud_video_url(file_id: str) -> str:
-    """Direct Drive API URL the browser can play using the SA token as a query param.
-    Works on Streamlit Cloud — no localhost proxy required.
-    """
-    token = _sa_access_token()
-    if not token:
-        return ""
-    return (
-        f"https://www.googleapis.com/drive/v3/files/{file_id}"
-        f"?alt=media&supportsAllDrives=true&access_token={token}"
-    )
+        return b""
+    url = f"https://www.googleapis.com/drive/v3/files/{file_id}"
+    params = {"alt": "media", "supportsAllDrives": "true"}
+    headers = {"Authorization": f"Bearer {creds.token}"}
+    try:
+        with requests.get(
+            url, headers=headers, params=params,
+            stream=True, timeout=(30, 600)
+        ) as resp:
+            resp.raise_for_status()
+            return resp.content
+    except Exception:
+        return b""
 
 
 def format_topic(text: str) -> str:
@@ -1166,8 +1168,9 @@ with right:
     preview_url = drive_preview_url(selected["drive_link"])
     file_id = selected["id"]
 
-    # Local dev  → fast localhost range-proxy
-    # Streamlit Cloud → direct Drive API URL with SA token (works for all recordings)
+    # Local dev  → fast localhost range-proxy (no download needed)
+    # Streamlit Cloud → fetch bytes server-side with SA token, serve via Streamlit's
+    #   own internal media endpoint so the browser needs no Google auth at all
     if _proxy_available():
         try:
             stream_url = drive_stream_playback_url(file_id, API_KEY)
@@ -1178,24 +1181,16 @@ with right:
             )
         except Exception as exc:
             st.error(f"Could not start playback stream: {exc}")
-            st.markdown(
-                f'<div class="drive-player-wrap"><iframe src="{preview_url}" allowfullscreen></iframe></div>',
-                unsafe_allow_html=True,
-            )
     else:
-        cloud_url = drive_cloud_video_url(file_id)
-        if cloud_url:
-            st.video(cloud_url)
+        video_bytes = fetch_video_bytes(file_id)
+        if video_bytes:
+            st.video(video_bytes)
             st.markdown(
                 '<p class="action-hint">▶ Streaming from Google Drive via secure service account.</p>',
                 unsafe_allow_html=True,
             )
         else:
-            st.warning("Could not get a playback token. Check that service account credentials are set in Secrets.")
-            st.markdown(
-                f'<div class="drive-player-wrap"><iframe src="{preview_url}" allowfullscreen></iframe></div>',
-                unsafe_allow_html=True,
-            )
+            st.error("🔑 Could not load video — check that **[gcp_service_account]** credentials are set in Streamlit Cloud Secrets.")
 
     st.markdown('<hr class="soft-divider">', unsafe_allow_html=True)
 
