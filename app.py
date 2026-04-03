@@ -1153,24 +1153,10 @@ with right:
             try:
                 stream_video_to_static(file_id, progress_bar=pb)
                 pb.empty()
-                # st.components.v1.html() renders unsanitised HTML in a real iframe —
-                # the <video> src is an absolute URL so the inner iframe can reach it.
-                # Detect public hostname for absolute URL
-                try:
-                    host = st.context.headers.get("Host", "localhost:8501")
-                    scheme = "https" if "streamlit.app" in host else "http"
-                    base = f"{scheme}://{host}"
-                except Exception:
-                    base = "http://localhost:8501"
-                video_src = f"{base}/app/static/{file_id}.mp4"
-                st.components.v1.html(
-                    f"""<!DOCTYPE html><html><body style="margin:0;background:#000;">
-                    <video controls autoplay style="width:100%;max-height:520px;border-radius:12px;"
-                        src="{video_src}">
-                        Your browser does not support the video tag.
-                    </video></body></html>""",
-                    height=540,
-                )
+                # Streamlit static file server (Tornado) serves ./static/ at /app/static/
+                # and natively handles Range requests → fully seekable, any file size.
+                # Passing the path string to st.video() lets the browser fetch directly.
+                st.video(f"/app/static/{file_id}.mp4")
                 st.markdown(
                     '<p class="action-hint">⚡ Served securely via service account — fully seekable, no Google sign-in needed.</p>',
                     unsafe_allow_html=True,
