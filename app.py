@@ -410,6 +410,89 @@ def inject_app_css() -> None:
         border-top: 1px solid #e2e8f0;
         margin: 0.9rem 0;
     }
+
+    /* ════════════════════════════════════════
+       MOBILE  ≤ 768 px
+    ════════════════════════════════════════ */
+    @media (max-width: 768px) {
+        /* Tighter page padding */
+        .block-container {
+            padding-left: 0.75rem !important;
+            padding-right: 0.75rem !important;
+            padding-top: 0.5rem !important;
+        }
+
+        /* Hero: smaller text, less padding */
+        .hero-banner {
+            padding: 1.1rem 1.1rem 1rem 1.1rem;
+            border-radius: 14px;
+            margin-bottom: 0.85rem;
+        }
+        .hero-title { font-size: 1.3rem; }
+        .hero-sub   { font-size: 0.78rem; }
+
+        /* Stats: 2-column grid on phone */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.55rem;
+        }
+        .stat-card { min-width: unset; padding: 0.55rem 0.5rem; }
+        .stat-number { font-size: 1.35rem; }
+        .stat-label  { font-size: 0.65rem; }
+
+        /* Search + sort stack vertically */
+        div[data-testid="stHorizontalBlock"] > div {
+            min-width: 100% !important;
+        }
+
+        /* Columns: stack player ABOVE playlist on mobile so video appears first */
+        section[data-testid="stMain"] > div > div[data-testid="stVerticalBlock"]
+            > div[data-testid="stHorizontalBlock"] {
+            flex-direction: column-reverse !important;
+        }
+
+        /* Player title */
+        .player-title { font-size: 1.15rem; }
+
+        /* Meta pills: smaller */
+        .meta-pill { font-size: 0.7rem; padding: 0.22rem 0.55rem; }
+
+        /* Now playing badge */
+        .now-playing { font-size: 0.68rem; padding: 0.25rem 0.7rem; }
+
+        /* Playlist radio cards: bigger tap target, no slide animation */
+        div[data-testid="stRadio"] label {
+            padding: 0.75rem 0.9rem !important;
+            font-size: 0.88rem !important;
+        }
+        div[data-testid="stRadio"] label:hover,
+        div[data-testid="stRadio"] label:has(input:checked) {
+            transform: none !important;
+        }
+
+        /* Nav buttons full-width */
+        .stButton > button { font-size: 0.82rem !important; }
+
+        /* Video player: slightly smaller radius on small screens */
+        .drive-player-wrap { border-radius: 12px; }
+        .drive-player-wrap iframe { border-radius: 10px; }
+
+        /* Expanders */
+        div[data-testid="stExpander"] { border-radius: 10px !important; }
+    }
+
+    /* ════════════════════════════════════════
+       SMALL PHONE  ≤ 480 px
+    ════════════════════════════════════════ */
+    @media (max-width: 480px) {
+        .hero-title { font-size: 1.1rem; }
+        .hero-sub   { display: none; }  /* hide subtitle to save space */
+        .player-title { font-size: 1rem; }
+        .stats-bar { grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+        .stat-number { font-size: 1.15rem; }
+        .meta-row { gap: 0.3rem; }
+    }
 </style>
         """,
         unsafe_allow_html=True,
