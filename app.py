@@ -618,17 +618,6 @@ def drive_stream_playback_url(file_id: str, api_key: str) -> str:
 _STATIC_VIDEO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
 
-def _get_app_base_url() -> str:
-    """Derive the app's public base URL for constructing static file URLs."""
-    try:
-        host = st.context.headers.get("Host", "")
-        if host and not host.startswith("localhost"):
-            return f"https://{host}"
-        return f"http://{host}" if host else "http://localhost:8501"
-    except Exception:
-        return "http://localhost:8501"
-
-
 def _get_file_size(file_id: str) -> int:
     """Return Drive file size in bytes via metadata. Returns 0 on failure."""
     try:
@@ -646,17 +635,18 @@ def _get_file_size(file_id: str) -> int:
         return 0
 
 
-def stream_video_to_static(file_id: str, progress_bar=None) -> str:
+def stream_video_to_static(file_id: str, progress_bar=None) -> None:
     """
     Stream Drive video to ./static/{file_id}.mp4 using the service account.
-    Returns the full public URL for use with st.video().
-    Supports arbitrarily large files — writes to disk in 4 MB chunks, never into RAM.
+    Writes to disk in 4 MB chunks — no RAM usage regardless of file size.
+    The file is then served by Streamlit's Tornado static server at /app/static/{file_id}.mp4
+    which natively supports Range requests (fully seekable).
     """
     os.makedirs(_STATIC_VIDEO_DIR, exist_ok=True)
     out_path = os.path.join(_STATIC_VIDEO_DIR, f"{file_id}.mp4")
 
     if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
-        return f"{_get_app_base_url()}/app/static/{file_id}.mp4"
+        return  # already cached on disk
 
     headers, extra_params = drive_auth_headers_and_params(API_KEY)
     params = {"alt": "media", "supportsAllDrives": "true", **extra_params}
@@ -688,7 +678,6 @@ def stream_video_to_static(file_id: str, progress_bar=None) -> str:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
         raise
-    return f"{_get_app_base_url()}/app/static/{file_id}.mp4"
 
 
 def format_topic(text: str) -> str:
@@ -1162,9 +1151,18 @@ with right:
         if st.session_state.play_requested_id == file_id:
             pb = st.progress(0, text="Starting download…")
             try:
-                video_url = stream_video_to_static(file_id, progress_bar=pb)
+                stream_video_to_static(file_id, progress_bar=pb)
                 pb.empty()
-                st.video(video_url)
+                # Use a raw <video> tag with a root-relative path — the browser resolves
+                # /app/static/ correctly on both local and Streamlit Cloud, and Tornado's
+                # StaticFileHandler natively supports Range requests (fully seekable).
+                st.markdown(
+                    f"""<video controls autoplay style="width:100%;border-radius:12px;
+                    box-shadow:0 24px 64px -12px rgba(15,23,42,0.22);"
+                    src="/app/static/{file_id}.mp4">
+                    Your browser does not support the video tag.</video>""",
+                    unsafe_allow_html=True,
+                )
                 st.markdown(
                     '<p class="action-hint">⚡ Served securely via service account — fully seekable, no Google sign-in needed.</p>',
                     unsafe_allow_html=True,
