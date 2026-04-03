@@ -1156,7 +1156,7 @@ with right:
                 # Streamlit static file server (Tornado) serves ./static/ at /app/static/
                 # and natively handles Range requests → fully seekable, any file size.
                 # Passing the path string to st.video() lets the browser fetch directly.
-                st.video(f"/app/static/{file_id}.mp4")
+                st.video(f"app/static/{file_id}.mp4")
                 st.markdown(
                     '<p class="action-hint">⚡ Served securely via service account — fully seekable, no Google sign-in needed.</p>',
                     unsafe_allow_html=True,
