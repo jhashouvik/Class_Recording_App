@@ -1103,14 +1103,6 @@ with right:
         else:
             st.button("Next ➡", key="btn_next", use_container_width=True, disabled=True)
 
-    # Action link buttons — only show if authenticated (or no password set)
-    if not _APP_PASSWORD or st.session_state.get("authenticated"):
-        link_a, link_b = st.columns(2)
-        with link_a:
-            st.link_button("↗ Open in Google Drive", selected["drive_link"], use_container_width=True)
-        with link_b:
-            st.link_button("🖥 Preview in new tab", preview_url, use_container_width=True)
-
     with st.expander("📋 File details"):
         st.json(
             {
@@ -1119,7 +1111,6 @@ with right:
                 "subject": selected["subject"],
                 "date": selected["date"],
                 "created_time": selected.get("created_time", ""),
-                "drive_link": selected["drive_link"],
             }
         )
 
