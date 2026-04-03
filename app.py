@@ -1153,10 +1153,16 @@ with right:
             try:
                 stream_video_to_static(file_id, progress_bar=pb)
                 pb.empty()
-                # Streamlit static file server (Tornado) serves ./static/ at /app/static/
-                # and natively handles Range requests → fully seekable, any file size.
-                # Passing the path string to st.video() lets the browser fetch directly.
-                st.video(f"app/static/{file_id}.mp4")
+                # Build the full public URL — st.video() needs http(s):// to treat it
+                # as a network URL (not a local file path). Tornado serves ./static/ at
+                # /app/static/ with Range request support → fully seekable, any size.
+                try:
+                    host = st.context.headers.get("host", "localhost:8501")
+                except Exception:
+                    host = "localhost:8501"
+                scheme = "https" if ("localhost" not in host and "127.0.0.1" not in host) else "http"
+                video_url = f"{scheme}://{host}/app/static/{file_id}.mp4"
+                st.video(video_url)
                 st.markdown(
                     '<p class="action-hint">⚡ Served securely via service account — fully seekable, no Google sign-in needed.</p>',
                     unsafe_allow_html=True,
