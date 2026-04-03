@@ -612,6 +612,44 @@ def drive_stream_playback_url(file_id: str, api_key: str) -> str:
     return f"http://127.0.0.1:{port}/video/{quote(file_id, safe='')}"
 
 
+# Max file size (bytes) we'll fetch into RAM on Streamlit Cloud.
+# 400 MB is safe for Cloud's 1 GB limit; larger files fall back to iframe.
+_MAX_FETCH_BYTES = 400 * 1024 * 1024
+
+
+def _get_file_size(file_id: str) -> int:
+    """Return Drive file size in bytes using a HEAD-like metadata call. Returns 0 on failure."""
+    try:
+        headers, extra_params = drive_auth_headers_and_params(API_KEY)
+        params = {"fields": "size", "supportsAllDrives": "true", **extra_params}
+        resp = requests.get(
+            f"https://www.googleapis.com/drive/v3/files/{file_id}",
+            headers=headers or {},
+            params=params,
+            timeout=10,
+        )
+        resp.raise_for_status()
+        return int(resp.json().get("size", 0))
+    except Exception:
+        return 0
+
+
+@st.cache_data(ttl=1800, max_entries=2)
+def fetch_video_bytes(file_id: str) -> bytes:
+    """Fetch video bytes server-side using the service account token."""
+    headers, extra_params = drive_auth_headers_and_params(API_KEY)
+    params = {"alt": "media", "supportsAllDrives": "true", **extra_params}
+    resp = requests.get(
+        f"https://www.googleapis.com/drive/v3/files/{file_id}",
+        headers=headers or {},
+        params=params,
+        timeout=(30, 600),
+        stream=True,
+    )
+    resp.raise_for_status()
+    return resp.content
+
+
 def format_topic(text: str) -> str:
     special_words = {
         "git": "GIT",
@@ -1057,23 +1095,58 @@ with right:
     preview_url = drive_preview_url(selected["drive_link"])
     file_id = selected["id"]
 
-    # Use the local HTTP range proxy only when a credentials file exists on disk (local dev).
-    # On Streamlit Cloud the file doesn't exist, so we fall back to the responsive iframe embed.
+    # Initialise play-request state
+    if "play_requested_id" not in st.session_state:
+        st.session_state.play_requested_id = None
+
+    # Reset play state when user switches recording
+    if st.session_state.play_requested_id != file_id:
+        st.session_state.play_requested_id = None
+
     if _proxy_available():
+        # Local dev: stream via range-proxy (fast, no full download)
         try:
             stream_url = drive_stream_playback_url(file_id, API_KEY)
             st.video(stream_url)
             st.markdown(
-                '<p class="action-hint">⚡ Streams via local proxy (HTTP Range) — fast start, no full download.</p>',
+                '<p class="action-hint">⚡ Streams via local proxy (HTTP Range) — fast start.</p>',
                 unsafe_allow_html=True,
             )
         except Exception as exc:
             st.error(f"Could not start playback stream: {exc}")
+    elif service_account_credentials() is not None:
+        # Cloud + service account: fetch bytes server-side (no browser Google auth needed)
+        if st.session_state.play_requested_id == file_id:
+            with st.spinner("Loading video…"):
+                try:
+                    file_size = _get_file_size(file_id)
+                    if file_size > _MAX_FETCH_BYTES:
+                        st.warning(
+                            f"This recording is {file_size // (1024*1024)} MB — too large to stream "
+                            f"in-app. Please download it directly from Google Drive."
+                        )
+                        st.session_state.play_requested_id = None
+                    else:
+                        video_bytes = fetch_video_bytes(file_id)
+                        st.video(video_bytes)
+                        st.markdown(
+                            '<p class="action-hint">⚡ Served securely via service account — no Google sign-in needed.</p>',
+                            unsafe_allow_html=True,
+                        )
+                except Exception as exc:
+                    st.error(f"Playback error: {exc}")
+                    st.session_state.play_requested_id = None
+        else:
             st.markdown(
                 f'<div class="drive-player-wrap"><iframe src="{preview_url}" allowfullscreen></iframe></div>',
                 unsafe_allow_html=True,
             )
+            if st.button("▶ Play Video", key=f"play_btn_{file_id}", type="primary", use_container_width=True):
+                st.session_state.play_requested_id = file_id
+                st.rerun()
+            st.caption("Click Play to load securely via the server (no Google sign-in required).")
     else:
+        # No credentials at all — iframe only
         st.markdown(
             f'<div class="drive-player-wrap"><iframe src="{preview_url}" allowfullscreen></iframe></div>',
             unsafe_allow_html=True,
