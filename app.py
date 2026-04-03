@@ -737,6 +737,46 @@ def fetch_drive_videos(api_key: str, folder_id: str) -> List[Dict]:
 
 
 inject_app_css()
+
+# ── Password gate ─────────────────────────────────────────────────────────────
+# Set APP_PASSWORD in Streamlit Cloud Secrets (or .streamlit/secrets.toml locally).
+# If no password is configured the gate is skipped (open access).
+_APP_PASSWORD = ""
+try:
+    _APP_PASSWORD = str(st.secrets.get("APP_PASSWORD", "")).strip()
+except Exception:
+    pass
+
+if _APP_PASSWORD:
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+
+    if not st.session_state.authenticated:
+        st.markdown(
+            """
+<div style="max-width:400px;margin:6rem auto 0 auto;padding:2.5rem 2rem;background:#fff;
+border:1.5px solid #e2e8f0;border-radius:20px;box-shadow:0 20px 60px rgba(15,23,42,0.12);text-align:center">
+    <div style="font-size:2.5rem;margin-bottom:0.5rem">🔐</div>
+    <h2 style="font-size:1.4rem;font-weight:800;color:#0f172a;margin:0 0 0.4rem 0">DevOps Recordings</h2>
+    <p style="color:#64748b;font-size:0.88rem;margin:0 0 1.4rem 0">Enter the class password to continue</p>
+</div>
+            """,
+            unsafe_allow_html=True,
+        )
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            pwd = st.text_input("Password", type="password", label_visibility="collapsed",
+                                placeholder="Enter password…")
+            if st.button("Unlock 🔓", use_container_width=True, type="primary"):
+                if pwd == _APP_PASSWORD:
+                    st.session_state.authenticated = True
+                    st.rerun()
+                else:
+                    st.error("Incorrect password. Please try again.")
+        st.stop()
+
+# ── End password gate ──────────────────────────────────────────────────────────
+
 st.markdown(
     """
 <div class="hero-banner">
@@ -1063,12 +1103,13 @@ with right:
         else:
             st.button("Next ➡", key="btn_next", use_container_width=True, disabled=True)
 
-    # Action link buttons
-    link_a, link_b = st.columns(2)
-    with link_a:
-        st.link_button("↗ Open in Google Drive", selected["drive_link"], use_container_width=True)
-    with link_b:
-        st.link_button("🖥 Preview in new tab", preview_url, use_container_width=True)
+    # Action link buttons — only show if authenticated (or no password set)
+    if not _APP_PASSWORD or st.session_state.get("authenticated"):
+        link_a, link_b = st.columns(2)
+        with link_a:
+            st.link_button("↗ Open in Google Drive", selected["drive_link"], use_container_width=True)
+        with link_b:
+            st.link_button("🖥 Preview in new tab", preview_url, use_container_width=True)
 
     with st.expander("📋 File details"):
         st.json(
