@@ -695,13 +695,9 @@ def drive_stream_playback_url(file_id: str, api_key: str) -> str:
     return f"http://127.0.0.1:{port}/video/{quote(file_id, safe='')}"
 
 
-@st.cache_data(ttl=1800, max_entries=3, show_spinner="⏳ Loading recording…")
+@st.cache_data(ttl=1800, max_entries=2)
 def fetch_video_bytes(file_id: str) -> bytes:
-    """Fetch video content server-side using SA credentials.
-    Streamlit serves the bytes through its own internal media URL,
-    so the browser never needs a Google login or token.
-    Cached per file_id for 30 min; max 3 recordings held in memory at once.
-    """
+    """Fetch video bytes server-side using SA credentials (called only on explicit Play)."""
     creds = service_account_credentials()
     if creds is None:
         return b""
@@ -1067,6 +1063,11 @@ if not filtered:
 if "selected_file_id" not in st.session_state:
     st.session_state.selected_file_id = filtered[0]["id"]
 
+# play_requested_id tracks which recording the user explicitly clicked Play for.
+# Keeping it separate from selected_file_id prevents auto-loading bytes on every render.
+if "play_requested_id" not in st.session_state:
+    st.session_state.play_requested_id = None
+
 left, right = st.columns([1.1, 1.9])
 
 with left:
@@ -1124,6 +1125,7 @@ with left:
 
     if chosen is not None and playlist_ids[chosen] != st.session_state.selected_file_id:
         st.session_state.selected_file_id = playlist_ids[chosen]
+        st.session_state.play_requested_id = None   # reset so new recording shows Play button
         st.rerun()
 
 selected = next((x for x in filtered if x["id"] == st.session_state.selected_file_id), None)
@@ -1169,28 +1171,47 @@ with right:
     file_id = selected["id"]
 
     # Local dev  → fast localhost range-proxy (no download needed)
-    # Streamlit Cloud → fetch bytes server-side with SA token, serve via Streamlit's
-    #   own internal media endpoint so the browser needs no Google auth at all
+    # Streamlit Cloud → only fetch bytes after explicit Play click (prevents OOM crash)
     if _proxy_available():
         try:
             stream_url = drive_stream_playback_url(file_id, API_KEY)
             st.video(stream_url)
             st.markdown(
-                '<p class="action-hint">⚡ Streams via local proxy (HTTP Range) — fast start, no full download.</p>',
+                '<p class="action-hint">⚡ Streams via local proxy — fast start, no full download.</p>',
                 unsafe_allow_html=True,
             )
         except Exception as exc:
             st.error(f"Could not start playback stream: {exc}")
     else:
-        video_bytes = fetch_video_bytes(file_id)
-        if video_bytes:
-            st.video(video_bytes)
+        if st.session_state.play_requested_id != file_id:
+            # Show Play button — do NOT auto-load bytes
             st.markdown(
-                '<p class="action-hint">▶ Streaming from Google Drive via secure service account.</p>',
+                f"""
+<div style="background:#0f172a;border-radius:16px;padding:5rem 2rem;
+text-align:center;margin-bottom:0.5rem;cursor:pointer;">
+    <div style="font-size:3.5rem;margin-bottom:0.75rem">▶️</div>
+    <div style="color:#f0f9ff;font-size:1rem;font-weight:700">{selected['topic']}</div>
+    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.4rem">Click the button below to load and play</div>
+</div>
+                """,
                 unsafe_allow_html=True,
             )
+            if st.button("▶\u2002Load & Play this recording", key="btn_play",
+                         type="primary", use_container_width=True):
+                st.session_state.play_requested_id = file_id
+                st.rerun()
         else:
-            st.error("🔑 Could not load video — check that **[gcp_service_account]** credentials are set in Streamlit Cloud Secrets.")
+            # User explicitly requested this file — now safe to load
+            with st.spinner("⏳ Loading recording from Drive…"):
+                video_bytes = fetch_video_bytes(file_id)
+            if video_bytes:
+                st.video(video_bytes)
+                st.markdown(
+                    '<p class="action-hint">▶ Served via secure service account — no Google login needed.</p>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.error("🔑 Could not load video. Check that **[gcp_service_account]** is set in Streamlit Cloud Secrets.")
 
     st.markdown('<hr class="soft-divider">', unsafe_allow_html=True)
 
@@ -1201,6 +1222,7 @@ with right:
         if current_pos > 0:
             if st.button("⬅ Previous", key="btn_prev", use_container_width=True):
                 st.session_state.selected_file_id = filtered[current_pos - 1]["id"]
+                st.session_state.play_requested_id = None
                 st.rerun()
         else:
             st.button("⬅ Previous", key="btn_prev", use_container_width=True, disabled=True)
@@ -1208,6 +1230,7 @@ with right:
         if current_pos < len(filtered) - 1:
             if st.button("Next ➡", key="btn_next", use_container_width=True):
                 st.session_state.selected_file_id = filtered[current_pos + 1]["id"]
+                st.session_state.play_requested_id = None
                 st.rerun()
         else:
             st.button("Next ➡", key="btn_next", use_container_width=True, disabled=True)
