@@ -1,7 +1,6 @@
 import os
 import re
 import socket
-import traceback
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
@@ -411,89 +410,6 @@ def inject_app_css() -> None:
         border-top: 1px solid #e2e8f0;
         margin: 0.9rem 0;
     }
-
-    /* ════════════════════════════════════════
-       MOBILE  ≤ 768 px
-    ════════════════════════════════════════ */
-    @media (max-width: 768px) {
-        /* Tighter page padding */
-        .block-container {
-            padding-left: 0.75rem !important;
-            padding-right: 0.75rem !important;
-            padding-top: 0.5rem !important;
-        }
-
-        /* Hero: smaller text, less padding */
-        .hero-banner {
-            padding: 1.1rem 1.1rem 1rem 1.1rem;
-            border-radius: 14px;
-            margin-bottom: 0.85rem;
-        }
-        .hero-title { font-size: 1.3rem; }
-        .hero-sub   { font-size: 0.78rem; }
-
-        /* Stats: 2-column grid on phone */
-        .stats-bar {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 0.55rem;
-        }
-        .stat-card { min-width: unset; padding: 0.55rem 0.5rem; }
-        .stat-number { font-size: 1.35rem; }
-        .stat-label  { font-size: 0.65rem; }
-
-        /* Search + sort stack vertically */
-        div[data-testid="stHorizontalBlock"] > div {
-            min-width: 100% !important;
-        }
-
-        /* Columns: stack player ABOVE playlist on mobile so video appears first */
-        section[data-testid="stMain"] > div > div[data-testid="stVerticalBlock"]
-            > div[data-testid="stHorizontalBlock"] {
-            flex-direction: column-reverse !important;
-        }
-
-        /* Player title */
-        .player-title { font-size: 1.15rem; }
-
-        /* Meta pills: smaller */
-        .meta-pill { font-size: 0.7rem; padding: 0.22rem 0.55rem; }
-
-        /* Now playing badge */
-        .now-playing { font-size: 0.68rem; padding: 0.25rem 0.7rem; }
-
-        /* Playlist radio cards: bigger tap target, no slide animation */
-        div[data-testid="stRadio"] label {
-            padding: 0.75rem 0.9rem !important;
-            font-size: 0.88rem !important;
-        }
-        div[data-testid="stRadio"] label:hover,
-        div[data-testid="stRadio"] label:has(input:checked) {
-            transform: none !important;
-        }
-
-        /* Nav buttons full-width */
-        .stButton > button { font-size: 0.82rem !important; }
-
-        /* Video player: slightly smaller radius on small screens */
-        .drive-player-wrap { border-radius: 12px; }
-        .drive-player-wrap iframe { border-radius: 10px; }
-
-        /* Expanders */
-        div[data-testid="stExpander"] { border-radius: 10px !important; }
-    }
-
-    /* ════════════════════════════════════════
-       SMALL PHONE  ≤ 480 px
-    ════════════════════════════════════════ */
-    @media (max-width: 480px) {
-        .hero-title { font-size: 1.1rem; }
-        .hero-sub   { display: none; }  /* hide subtitle to save space */
-        .player-title { font-size: 1rem; }
-        .stats-bar { grid-template-columns: 1fr 1fr; gap: 0.4rem; }
-        .stat-number { font-size: 1.15rem; }
-        .meta-row { gap: 0.3rem; }
-    }
 </style>
         """,
         unsafe_allow_html=True,
@@ -694,30 +610,6 @@ def drive_video_proxy_port(api_key: str) -> int:
 def drive_stream_playback_url(file_id: str, api_key: str) -> str:
     port = drive_video_proxy_port(api_key)
     return f"http://127.0.0.1:{port}/video/{quote(file_id, safe='')}"
-
-
-@st.cache_data(ttl=1800, max_entries=2)
-def fetch_video_bytes(file_id: str) -> bytes:
-    """Fetch video bytes server-side using SA credentials (called only on explicit Play)."""
-    creds = service_account_credentials()
-    if creds is None:
-        return b""
-    try:
-        creds.refresh(Request())
-    except Exception:
-        return b""
-    url = f"https://www.googleapis.com/drive/v3/files/{file_id}"
-    params = {"alt": "media", "supportsAllDrives": "true"}
-    headers = {"Authorization": f"Bearer {creds.token}"}
-    try:
-        with requests.get(
-            url, headers=headers, params=params,
-            stream=True, timeout=(30, 600)
-        ) as resp:
-            resp.raise_for_status()
-            return resp.content
-    except Exception:
-        return b""
 
 
 def format_topic(text: str) -> str:
@@ -927,8 +819,7 @@ except requests.HTTPError as exc:
         err_body = exc.response.json().get("error", {}).get("message", "")
     except Exception:
         pass
-    status = getattr(getattr(exc, "response", None), "status_code", None)
-    if status == 403:
+    if exc.response.status_code == 403:
         api_disabled = (
             "has not been used" in err_body
             or "is disabled" in err_body.lower()
@@ -1065,11 +956,6 @@ if not filtered:
 if "selected_file_id" not in st.session_state:
     st.session_state.selected_file_id = filtered[0]["id"]
 
-# play_requested_id tracks which recording the user explicitly clicked Play for.
-# Keeping it separate from selected_file_id prevents auto-loading bytes on every render.
-if "play_requested_id" not in st.session_state:
-    st.session_state.play_requested_id = None
-
 left, right = st.columns([1.1, 1.9])
 
 with left:
@@ -1127,7 +1013,6 @@ with left:
 
     if chosen is not None and playlist_ids[chosen] != st.session_state.selected_file_id:
         st.session_state.selected_file_id = playlist_ids[chosen]
-        st.session_state.play_requested_id = None   # reset so new recording shows Play button
         st.rerun()
 
 selected = next((x for x in filtered if x["id"] == st.session_state.selected_file_id), None)
@@ -1172,48 +1057,31 @@ with right:
     preview_url = drive_preview_url(selected["drive_link"])
     file_id = selected["id"]
 
-    # Local dev  → fast localhost range-proxy (no download needed)
-    # Streamlit Cloud → only fetch bytes after explicit Play click (prevents OOM crash)
+    # Use the local HTTP range proxy only when a credentials file exists on disk (local dev).
+    # On Streamlit Cloud the file doesn't exist, so we fall back to the responsive iframe embed.
     if _proxy_available():
         try:
             stream_url = drive_stream_playback_url(file_id, API_KEY)
             st.video(stream_url)
             st.markdown(
-                '<p class="action-hint">⚡ Streams via local proxy — fast start, no full download.</p>',
+                '<p class="action-hint">⚡ Streams via local proxy (HTTP Range) — fast start, no full download.</p>',
                 unsafe_allow_html=True,
             )
         except Exception as exc:
             st.error(f"Could not start playback stream: {exc}")
-    else:
-        if st.session_state.play_requested_id != file_id:
-            # Show Play button — do NOT auto-load bytes
             st.markdown(
-                f"""
-<div style="background:#0f172a;border-radius:16px;padding:5rem 2rem;
-text-align:center;margin-bottom:0.5rem;cursor:pointer;">
-    <div style="font-size:3.5rem;margin-bottom:0.75rem">▶️</div>
-    <div style="color:#f0f9ff;font-size:1rem;font-weight:700">{selected['topic']}</div>
-    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.4rem">Click the button below to load and play</div>
-</div>
-                """,
+                f'<div class="drive-player-wrap"><iframe src="{preview_url}" allowfullscreen></iframe></div>',
                 unsafe_allow_html=True,
             )
-            if st.button("▶\u2002Load & Play this recording", key="btn_play",
-                         type="primary", use_container_width=True):
-                st.session_state.play_requested_id = file_id
-                st.rerun()
-        else:
-            # User explicitly requested this file — now safe to load
-            with st.spinner("⏳ Loading recording from Drive…"):
-                video_bytes = fetch_video_bytes(file_id)
-            if video_bytes:
-                st.video(video_bytes)
-                st.markdown(
-                    '<p class="action-hint">▶ Served via secure service account — no Google login needed.</p>',
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.error("🔑 Could not load video. Check that **[gcp_service_account]** is set in Streamlit Cloud Secrets.")
+    else:
+        st.markdown(
+            f'<div class="drive-player-wrap"><iframe src="{preview_url}" allowfullscreen></iframe></div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            '<p class="action-hint">▶ Embedded Drive player — sign in with your Google account if prompted.</p>',
+            unsafe_allow_html=True,
+        )
 
     st.markdown('<hr class="soft-divider">', unsafe_allow_html=True)
 
@@ -1224,7 +1092,6 @@ text-align:center;margin-bottom:0.5rem;cursor:pointer;">
         if current_pos > 0:
             if st.button("⬅ Previous", key="btn_prev", use_container_width=True):
                 st.session_state.selected_file_id = filtered[current_pos - 1]["id"]
-                st.session_state.play_requested_id = None
                 st.rerun()
         else:
             st.button("⬅ Previous", key="btn_prev", use_container_width=True, disabled=True)
@@ -1232,7 +1099,6 @@ text-align:center;margin-bottom:0.5rem;cursor:pointer;">
         if current_pos < len(filtered) - 1:
             if st.button("Next ➡", key="btn_next", use_container_width=True):
                 st.session_state.selected_file_id = filtered[current_pos + 1]["id"]
-                st.session_state.play_requested_id = None
                 st.rerun()
         else:
             st.button("Next ➡", key="btn_next", use_container_width=True, disabled=True)
