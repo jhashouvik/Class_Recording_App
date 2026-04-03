@@ -1153,15 +1153,23 @@ with right:
             try:
                 stream_video_to_static(file_id, progress_bar=pb)
                 pb.empty()
-                # Use a raw <video> tag with a root-relative path — the browser resolves
-                # /app/static/ correctly on both local and Streamlit Cloud, and Tornado's
-                # StaticFileHandler natively supports Range requests (fully seekable).
-                st.markdown(
-                    f"""<video controls autoplay style="width:100%;border-radius:12px;
-                    box-shadow:0 24px 64px -12px rgba(15,23,42,0.22);"
-                    src="/app/static/{file_id}.mp4">
-                    Your browser does not support the video tag.</video>""",
-                    unsafe_allow_html=True,
+                # st.components.v1.html() renders unsanitised HTML in a real iframe —
+                # the <video> src is an absolute URL so the inner iframe can reach it.
+                # Detect public hostname for absolute URL
+                try:
+                    host = st.context.headers.get("Host", "localhost:8501")
+                    scheme = "https" if "streamlit.app" in host else "http"
+                    base = f"{scheme}://{host}"
+                except Exception:
+                    base = "http://localhost:8501"
+                video_src = f"{base}/app/static/{file_id}.mp4"
+                st.components.v1.html(
+                    f"""<!DOCTYPE html><html><body style="margin:0;background:#000;">
+                    <video controls autoplay style="width:100%;max-height:520px;border-radius:12px;"
+                        src="{video_src}">
+                        Your browser does not support the video tag.
+                    </video></body></html>""",
+                    height=540,
                 )
                 st.markdown(
                     '<p class="action-hint">⚡ Served securely via service account — fully seekable, no Google sign-in needed.</p>',
