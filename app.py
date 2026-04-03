@@ -1,6 +1,7 @@
 import os
 import re
 import socket
+import traceback
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
@@ -926,7 +927,8 @@ except requests.HTTPError as exc:
         err_body = exc.response.json().get("error", {}).get("message", "")
     except Exception:
         pass
-    if exc.response.status_code == 403:
+    status = getattr(getattr(exc, "response", None), "status_code", None)
+    if status == 403:
         api_disabled = (
             "has not been used" in err_body
             or "is disabled" in err_body.lower()
