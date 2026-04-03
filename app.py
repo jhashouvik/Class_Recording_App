@@ -695,6 +695,32 @@ def drive_stream_playback_url(file_id: str, api_key: str) -> str:
     return f"http://127.0.0.1:{port}/video/{quote(file_id, safe='')}"
 
 
+@st.cache_data(ttl=3000)  # cache for 50 min (SA tokens expire after 60 min)
+def _sa_access_token() -> str:
+    """Returns a valid service-account OAuth access token, refreshed automatically."""
+    creds = service_account_credentials()
+    if creds is None:
+        return ""
+    try:
+        creds.refresh(Request())
+        return creds.token or ""
+    except Exception:
+        return ""
+
+
+def drive_cloud_video_url(file_id: str) -> str:
+    """Direct Drive API URL the browser can play using the SA token as a query param.
+    Works on Streamlit Cloud — no localhost proxy required.
+    """
+    token = _sa_access_token()
+    if not token:
+        return ""
+    return (
+        f"https://www.googleapis.com/drive/v3/files/{file_id}"
+        f"?alt=media&supportsAllDrives=true&access_token={token}"
+    )
+
+
 def format_topic(text: str) -> str:
     special_words = {
         "git": "GIT",
@@ -1140,8 +1166,8 @@ with right:
     preview_url = drive_preview_url(selected["drive_link"])
     file_id = selected["id"]
 
-    # Use the local HTTP range proxy only when a credentials file exists on disk (local dev).
-    # On Streamlit Cloud the file doesn't exist, so we fall back to the responsive iframe embed.
+    # Local dev  → fast localhost range-proxy
+    # Streamlit Cloud → direct Drive API URL with SA token (works for all recordings)
     if _proxy_available():
         try:
             stream_url = drive_stream_playback_url(file_id, API_KEY)
@@ -1157,14 +1183,19 @@ with right:
                 unsafe_allow_html=True,
             )
     else:
-        st.markdown(
-            f'<div class="drive-player-wrap"><iframe src="{preview_url}" allowfullscreen></iframe></div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            '<p class="action-hint">▶ Embedded Drive player — sign in with your Google account if prompted.</p>',
-            unsafe_allow_html=True,
-        )
+        cloud_url = drive_cloud_video_url(file_id)
+        if cloud_url:
+            st.video(cloud_url)
+            st.markdown(
+                '<p class="action-hint">▶ Streaming from Google Drive via secure service account.</p>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.warning("Could not get a playback token. Check that service account credentials are set in Secrets.")
+            st.markdown(
+                f'<div class="drive-player-wrap"><iframe src="{preview_url}" allowfullscreen></iframe></div>',
+                unsafe_allow_html=True,
+            )
 
     st.markdown('<hr class="soft-divider">', unsafe_allow_html=True)
 
