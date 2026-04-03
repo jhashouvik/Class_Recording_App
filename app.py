@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import quote, unquote
-
+#this is test 
 import requests
 import streamlit as st
 from dotenv import load_dotenv
@@ -24,97 +24,357 @@ def inject_app_css() -> None:
     st.markdown(
         """
 <style>
+    /* ── Layout ── */
     .block-container {
-        padding-top: 1.25rem !important;
-        max-width: 1280px !important;
+        padding-top: 0.75rem !important;
+        max-width: 1380px !important;
     }
-    h1 {
-        font-weight: 700 !important;
-        letter-spacing: -0.03em !important;
-        color: #0f172a !important;
-        margin-bottom: 0.25rem !important;
+
+    /* ── Hero banner ── */
+    .hero-banner {
+        background: linear-gradient(135deg, #0f172a 0%, #0e4f6e 60%, #0891b2 100%);
+        border-radius: 20px;
+        padding: 1.6rem 2rem 1.4rem 2rem;
+        margin-bottom: 1.25rem;
+        position: relative;
+        overflow: hidden;
     }
-    .hero-caption {
+    .hero-banner::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse at 80% 50%, rgba(8,145,178,0.35) 0%, transparent 65%);
+        pointer-events: none;
+    }
+    .hero-title {
+        font-size: 2rem;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+        color: #f0f9ff !important;
+        margin: 0 0 0.3rem 0;
+    }
+    .hero-sub {
+        color: #bae6fd;
+        font-size: 0.92rem;
+        margin: 0;
+    }
+    .hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: rgba(255,255,255,0.12);
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 999px;
+        padding: 0.28rem 0.8rem;
+        font-size: 0.78rem;
+        color: #e0f2fe;
+        font-weight: 600;
+        margin-top: 0.7rem;
+    }
+
+    /* ── Stats bar ── */
+    .stats-bar {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.1rem;
+        flex-wrap: wrap;
+    }
+    .stat-card {
+        flex: 1;
+        min-width: 120px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 0.75rem 1rem;
+        text-align: center;
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    .stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 24px rgba(15,23,42,0.10);
+    }
+    .stat-number {
+        font-size: 1.7rem;
+        font-weight: 800;
+        color: #0891b2;
+        line-height: 1;
+    }
+    .stat-label {
+        font-size: 0.72rem;
         color: #64748b;
-        font-size: 0.95rem;
-        margin-top: 0;
-        margin-bottom: 1rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-top: 0.2rem;
     }
+
+    /* ── Search bar ── */
     [data-testid="stTextInput"] label {
-        font-weight: 600 !important;
-        color: #334155 !important;
-    }
-    [data-testid="stTextInput"] input {
-        border-radius: 12px !important;
+        font-weight: 700 !important;
+        color: #0f172a !important;
+        font-size: 0.85rem !important;
+        letter-spacing: 0.03em !important;
+        text-transform: uppercase !important;
     }
     [data-testid="stTextInput"] [data-baseweb="input"] {
-        border-radius: 12px !important;
+        border-radius: 14px !important;
         border-color: #e2e8f0 !important;
-        transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+        background: #f8fafc !important;
+        transition: border-color 0.2s, box-shadow 0.2s, background 0.2s !important;
     }
     [data-testid="stTextInput"] [data-baseweb="input"]:focus-within {
         border-color: #0891b2 !important;
-        box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.12) !important;
+        background: #fff !important;
+        box-shadow: 0 0 0 4px rgba(8,145,178,0.15) !important;
     }
-    .date-chip {
-        display: inline-block;
+
+    /* ── Sidebar library panel ── */
+    .lib-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+    }
+    .lib-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #0f172a;
+    }
+    .lib-count {
+        background: #0891b2;
+        color: #fff;
+        border-radius: 999px;
+        padding: 0.18rem 0.6rem;
         font-size: 0.72rem;
         font-weight: 700;
-        letter-spacing: 0.06em;
+    }
+    .date-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.07em;
         text-transform: uppercase;
         color: #0e7490;
         background: linear-gradient(135deg, #ecfeff 0%, #cffafe 100%);
         border: 1px solid #a5f3fc;
         border-radius: 999px;
-        padding: 0.35rem 0.75rem;
-        margin: 0.75rem 0 0.5rem 0;
+        padding: 0.32rem 0.8rem;
+        margin: 0.85rem 0 0.45rem 0;
     }
+
+    /* ── Playlist radio ── */
+    div[data-testid="stRadio"] {
+        margin-top: 0.2rem;
+    }
+    /* Hide the widget label */
+    div[data-testid="stRadio"] > div:first-child {
+        display: none;
+    }
+    div[data-testid="stRadio"] label {
+        display: flex !important;
+        align-items: center !important;
+        width: 100% !important;
+        border: 1.5px solid #e2e8f0 !important;
+        border-radius: 10px !important;
+        padding: 0.58rem 0.9rem !important;
+        margin-bottom: 0.28rem !important;
+        background: #fff !important;
+        transition: border-color 0.18s, background 0.18s, transform 0.15s, box-shadow 0.18s !important;
+        cursor: pointer !important;
+        font-size: 0.84rem !important;
+        color: #334155 !important;
+        font-weight: 500 !important;
+        line-height: 1.3 !important;
+    }
+    div[data-testid="stRadio"] label:hover {
+        border-color: #67e8f9 !important;
+        background: #f0fdff !important;
+        transform: translateX(4px) !important;
+        box-shadow: 0 3px 12px rgba(8,145,178,0.1) !important;
+    }
+    div[data-testid="stRadio"] label:has(input:checked) {
+        border-color: #0891b2 !important;
+        background: linear-gradient(135deg, #ecfeff 0%, #ddf6fd 100%) !important;
+        box-shadow: 0 0 0 3px rgba(8,145,178,0.13), inset 4px 0 0 #0891b2 !important;
+        color: #0e4f6e !important;
+        font-weight: 700 !important;
+        transform: translateX(4px) !important;
+    }
+    /* Hide the radio circle dot */
+    div[data-testid="stRadio"] label input[type="radio"] {
+        position: absolute !important;
+        width: 1px !important;
+        height: 1px !important;
+        opacity: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    div[data-testid="stRadio"] label > div {
+        font-size: 0.84rem !important;
+        line-height: 1.35 !important;
+    }
+    .playlist-date-sep {
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #94a3b8;
+        padding: 0.55rem 0.2rem 0.2rem 0.2rem;
+        border-bottom: 1px solid #f1f5f9;
+        margin-bottom: 0.18rem;
+    }
+
+    /* ── Buttons ── */
     .stButton > button {
         border-radius: 12px !important;
-        transition: transform 0.15s ease, box-shadow 0.15s ease !important;
-        font-weight: 500 !important;
+        font-weight: 600 !important;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease !important;
     }
     .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 18px rgba(15,23,42,0.14) !important;
     }
-    [data-testid="stMetric"] {
-        background: #f8fafc !important;
-        border: 1px solid #e2e8f0 !important;
-        border-radius: 12px !important;
-        padding: 0.5rem 0.75rem !important;
+
+    /* ── Now Playing badge ── */
+    @keyframes pulse-ring {
+        0%   { box-shadow: 0 0 0 0 rgba(8,145,178,0.5); }
+        70%  { box-shadow: 0 0 0 8px rgba(8,145,178,0); }
+        100% { box-shadow: 0 0 0 0 rgba(8,145,178,0); }
     }
-    [data-testid="stMetric"] label {
-        color: #64748b !important;
+    .now-playing {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        background: linear-gradient(135deg, #0891b2, #0e7490);
+        color: #fff;
+        border-radius: 999px;
+        padding: 0.32rem 0.9rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        animation: pulse-ring 2s infinite;
+        margin-bottom: 0.5rem;
     }
-    [data-testid="stMetric"] [data-testid="stMetricValue"] {
-        color: #0f172a !important;
+    .now-playing-dot {
+        width: 7px;
+        height: 7px;
+        background: #7dd3fc;
+        border-radius: 50%;
+        animation: pulse-ring 1.2s infinite;
     }
+
+    /* ── Topic title ── */
+    .player-title {
+        font-size: 1.65rem;
+        font-weight: 800;
+        color: #0f172a;
+        letter-spacing: -0.03em;
+        line-height: 1.2;
+        margin: 0.2rem 0 0.5rem 0;
+    }
+
+    /* ── Metadata pill row ── */
+    .meta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 0.9rem;
+    }
+    .meta-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        border-radius: 999px;
+        padding: 0.28rem 0.75rem;
+        font-size: 0.78rem;
+        color: #334155;
+        font-weight: 600;
+    }
+    .meta-pill span.icon { font-size: 0.85rem; }
+
+    /* ── Video player ── */
     .stVideo {
-        border-radius: 16px !important;
+        border-radius: 18px !important;
         overflow: hidden !important;
-        border: 1px solid #e2e8f0 !important;
-        box-shadow: 0 20px 50px -12px rgba(15, 23, 42, 0.18) !important;
+        border: 2px solid #e2e8f0 !important;
+        box-shadow: 0 24px 64px -12px rgba(15,23,42,0.22) !important;
+        transition: box-shadow 0.3s ease !important;
     }
-    .stVideo video {
-        border-radius: 16px !important;
+    .stVideo:hover {
+        box-shadow: 0 32px 80px -12px rgba(8,145,178,0.28) !important;
     }
+    .stVideo video { border-radius: 18px !important; }
+
+    /* ── Link buttons ── */
     [data-testid="stLinkButton"] a {
         border-radius: 12px !important;
+        font-weight: 600 !important;
         transition: transform 0.15s ease, box-shadow 0.15s ease !important;
     }
     [data-testid="stLinkButton"] a:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 14px rgba(8, 145, 178, 0.2) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 18px rgba(8,145,178,0.22) !important;
     }
-    .action-hint {
-        font-size: 0.85rem;
-        color: #64748b;
-        margin: 0.5rem 0 0.75rem 0;
-    }
-    div[data-testid="stExpander"] {
-        border-radius: 12px !important;
+
+    /* ── Metrics ── */
+    [data-testid="stMetric"] {
+        background: #f8fafc !important;
         border: 1px solid #e2e8f0 !important;
+        border-radius: 14px !important;
+        padding: 0.6rem 1rem !important;
+        transition: box-shadow 0.18s !important;
+    }
+    [data-testid="stMetric"]:hover {
+        box-shadow: 0 4px 14px rgba(15,23,42,0.08) !important;
+    }
+    [data-testid="stMetric"] label { color: #64748b !important; }
+    [data-testid="stMetric"] [data-testid="stMetricValue"] { color: #0f172a !important; font-weight: 700 !important; }
+
+    /* ── Expanders ── */
+    div[data-testid="stExpander"] {
+        border-radius: 14px !important;
+        border: 1px solid #e2e8f0 !important;
+        background: #fafbfc !important;
+    }
+
+    /* ── Progress bar (search match) ── */
+    .match-bar-wrap {
+        margin: 0.35rem 0 0.9rem 0;
+    }
+    .match-bar-bg {
+        background: #e2e8f0;
+        border-radius: 999px;
+        height: 6px;
+        overflow: hidden;
+    }
+    .match-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #0891b2, #06b6d4);
+        border-radius: 999px;
+        transition: width 0.4s ease;
+    }
+    .match-label {
+        font-size: 0.72rem;
+        color: #64748b;
+        margin-bottom: 0.2rem;
+    }
+
+    /* ── Action hint ── */
+    .action-hint {
+        font-size: 0.82rem;
+        color: #64748b;
+        margin: 0.4rem 0 0.6rem 0;
+    }
+
+    /* ── Divider ── */
+    .soft-divider {
+        border: none;
+        border-top: 1px solid #e2e8f0;
+        margin: 0.9rem 0;
     }
 </style>
         """,
@@ -431,9 +691,14 @@ def fetch_drive_videos(api_key: str, folder_id: str) -> List[Dict]:
 
 
 inject_app_css()
-st.title("🎥 DevOps Class Recordings")
 st.markdown(
-    '<p class="hero-caption">Auto-pulled from your Google Drive folder and grouped by date.</p>',
+    """
+<div class="hero-banner">
+    <div class="hero-title">🎥 DevOps Class Recordings</div>
+    <p class="hero-sub">Auto-pulled from your Google Drive folder · grouped by date · streams instantly</p>
+    <div class="hero-badge">🟢 Live from Drive</div>
+</div>
+    """,
     unsafe_allow_html=True,
 )
 
@@ -530,11 +795,47 @@ if not recordings:
     st.warning("No video files found in the selected Google Drive folder.")
     st.stop()
 
-search = st.text_input(
-    "Search recordings",
-    placeholder="Type a topic or file name…",
-    help="Filters the list by topic or filename.",
-)
+# ── Stats bar ──────────────────────────────────────────────────────────────
+all_dates = sorted({r["date"] for r in recordings if r["date"]}, reverse=True)
+all_topics = sorted({r["topic"] for r in recordings})
+latest_date = datetime.strptime(all_dates[0], "%Y-%m-%d").strftime("%d %b %Y") if all_dates else "—"
+
+stats_html = f"""
+<div class="stats-bar">
+    <div class="stat-card">
+        <div class="stat-number">{len(recordings)}</div>
+        <div class="stat-label">Total Recordings</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{len(all_dates)}</div>
+        <div class="stat-label">Class Days</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{len(all_topics)}</div>
+        <div class="stat-label">Topics Covered</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" style="font-size:1rem;padding-top:0.2rem">{latest_date}</div>
+        <div class="stat-label">Latest Class</div>
+    </div>
+</div>
+"""
+st.markdown(stats_html, unsafe_allow_html=True)
+
+# ── Search + sort controls ─────────────────────────────────────────────────
+ctrl_l, ctrl_r = st.columns([3, 1])
+with ctrl_l:
+    search = st.text_input(
+        "🔍  Search Recordings",
+        placeholder="Type a topic, keyword, or date…",
+        help="Filters by topic name or filename.",
+    )
+with ctrl_r:
+    sort_order = st.selectbox(
+        "Sort by",
+        ["📅 Newest First", "📅 Oldest First", "🔤 A → Z"],
+        index=0,
+    )
 
 filtered = [
     item
@@ -543,8 +844,27 @@ filtered = [
     or search.lower() in item["file_name"].lower()
 ]
 
+if sort_order == "📅 Oldest First":
+    filtered = sorted(filtered, key=lambda x: (x.get("date", ""), x.get("file_name", "")))
+elif sort_order == "🔤 A → Z":
+    filtered = sorted(filtered, key=lambda x: x.get("topic", ""))
+# "Newest First" is already the default sort from fetch_drive_videos
+
+# ── Match progress bar ─────────────────────────────────────────────────────
+if search:
+    pct = int(len(filtered) / max(len(recordings), 1) * 100)
+    st.markdown(
+        f"""
+<div class="match-bar-wrap">
+    <div class="match-label">Showing {len(filtered)} of {len(recordings)} recordings</div>
+    <div class="match-bar-bg"><div class="match-bar-fill" style="width:{pct}%"></div></div>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 if not filtered:
-    st.info("No matching recordings found.")
+    st.info("No matching recordings found. Try a different search term.")
     st.stop()
 
 if "selected_file_id" not in st.session_state:
@@ -553,36 +873,61 @@ if "selected_file_id" not in st.session_state:
 left, right = st.columns([1.1, 1.9])
 
 with left:
-    st.markdown("##### 📚 Library")
-    st.caption(f"{len(filtered)} recording(s)")
+    # Header row
+    st.markdown(
+        f"""
+<div class="lib-header">
+    <span class="lib-title">📚 Library</span>
+    <span class="lib-count">{len(filtered)}</span>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     if st.button("🔄 Refresh from Drive", key="btn_refresh_drive", use_container_width=True):
         fetch_drive_videos.clear()
         drive_video_proxy_port.clear()
         st.rerun()
 
-    grouped: Dict[str, List[Dict]] = {}
+    st.markdown('<hr class="soft-divider">', unsafe_allow_html=True)
+
+    # Build flat playlist labels (topic + short date), deduplicating identical labels
+    playlist_labels: List[str] = []
+    playlist_ids: List[str] = []
+    seen_labels: Dict[str, int] = {}
     for item in filtered:
-        grouped.setdefault(item["date"] or "Unknown Date", []).append(item)
+        date_short = ""
+        if item["date"]:
+            try:
+                date_short = datetime.strptime(item["date"], "%Y-%m-%d").strftime("%d %b '%y")
+            except Exception:
+                pass
+        base = f"{item['topic']}{'  ·  ' + date_short if date_short else ''}"
+        if base in seen_labels:
+            seen_labels[base] += 1
+            label = f"{base} ({seen_labels[base]})"
+        else:
+            seen_labels[base] = 1
+            label = base
+        playlist_labels.append(label)
+        playlist_ids.append(item["id"])
 
-    for date_key, items in grouped.items():
-        display_date = date_key
-        if date_key != "Unknown Date":
-            display_date = datetime.strptime(date_key, "%Y-%m-%d").strftime("%d %b %Y")
+    current_idx = next(
+        (i for i, fid in enumerate(playlist_ids) if fid == st.session_state.selected_file_id),
+        0,
+    )
 
-        st.markdown(f'<div class="date-chip">{display_date}</div>', unsafe_allow_html=True)
+    chosen = st.radio(
+        "playlist",
+        range(len(playlist_labels)),
+        format_func=lambda i: playlist_labels[i],
+        index=current_idx,
+        label_visibility="collapsed",
+    )
 
-        for item in items:
-            button_label = item["topic"]
-            is_selected = item["id"] == st.session_state.selected_file_id
-            btn_kwargs: Dict = {
-                "key": f"btn_{item['id']}",
-                "use_container_width": True,
-            }
-            if is_selected:
-                btn_kwargs["type"] = "primary"
-            if st.button(button_label, **btn_kwargs):
-                st.session_state.selected_file_id = item["id"]
+    if chosen is not None and playlist_ids[chosen] != st.session_state.selected_file_id:
+        st.session_state.selected_file_id = playlist_ids[chosen]
+        st.rerun()
 
 selected = next((x for x in filtered if x["id"] == st.session_state.selected_file_id), None)
 
@@ -590,16 +935,38 @@ if not selected:
     selected = filtered[0]
     st.session_state.selected_file_id = selected["id"]
 
+# Find the 1-based position of the selected item in filtered list
+selected_index = next((i + 1 for i, x in enumerate(filtered) if x["id"] == selected["id"]), 1)
+
 with right:
-    st.markdown(f"### {selected['topic']}")
+    # Now Playing badge
     st.markdown(
-        f'<p class="action-hint">📄 {selected["file_name"]}</p>',
+        '<div class="now-playing"><span class="now-playing-dot"></span> NOW PLAYING</div>',
         unsafe_allow_html=True,
     )
 
-    m1, m2 = st.columns(2)
-    m1.metric("Subject", selected["subject"])
-    m2.metric("Date", selected["date"] or "Unknown")
+    # Title
+    st.markdown(f'<div class="player-title">{selected["topic"]}</div>', unsafe_allow_html=True)
+
+    # Metadata pill row
+    created_fmt = ""
+    if selected.get("created_time"):
+        try:
+            created_fmt = datetime.fromisoformat(
+                selected["created_time"].replace("Z", "+00:00")
+            ).strftime("%d %b %Y, %I:%M %p")
+        except Exception:
+            created_fmt = selected["created_time"]
+
+    meta_html = f"""
+<div class="meta-row">
+    <span class="meta-pill"><span class="icon">📂</span> {selected["subject"]}</span>
+    <span class="meta-pill"><span class="icon">📅</span> {selected["date"] or "Unknown date"}</span>
+    <span class="meta-pill"><span class="icon">🎬</span> Recording #{selected_index} of {len(filtered)}</span>
+    {"<span class='meta-pill'><span class='icon'>🕒</span> Uploaded " + created_fmt + "</span>" if created_fmt else ""}
+</div>
+    """
+    st.markdown(meta_html, unsafe_allow_html=True)
 
     preview_url = drive_preview_url(selected["drive_link"])
     file_id = selected["id"]
@@ -613,29 +980,49 @@ with right:
             stream_url = drive_stream_playback_url(file_id, API_KEY)
             st.video(stream_url)
             st.markdown(
-                '<p class="action-hint">Streams via local proxy (HTTP Range) — fast start, no full download.</p>',
+                '<p class="action-hint">⚡ Streams via local proxy (HTTP Range) — fast start, no full download.</p>',
                 unsafe_allow_html=True,
             )
         except Exception as exc:
             st.error(f"Could not start playback stream: {exc}")
             st.components.v1.iframe(preview_url, height=560, scrolling=False)
 
+    st.markdown('<hr class="soft-divider">', unsafe_allow_html=True)
+
+    # Navigation buttons
+    nav_prev, nav_next = st.columns(2)
+    current_pos = next((i for i, x in enumerate(filtered) if x["id"] == selected["id"]), 0)
+    with nav_prev:
+        if current_pos > 0:
+            if st.button("⬅ Previous", key="btn_prev", use_container_width=True):
+                st.session_state.selected_file_id = filtered[current_pos - 1]["id"]
+                st.rerun()
+        else:
+            st.button("⬅ Previous", key="btn_prev", use_container_width=True, disabled=True)
+    with nav_next:
+        if current_pos < len(filtered) - 1:
+            if st.button("Next ➡", key="btn_next", use_container_width=True):
+                st.session_state.selected_file_id = filtered[current_pos + 1]["id"]
+                st.rerun()
+        else:
+            st.button("Next ➡", key="btn_next", use_container_width=True, disabled=True)
+
+    # Action link buttons
     link_a, link_b = st.columns(2)
     with link_a:
-        st.link_button("Open in Google Drive", selected["drive_link"], use_container_width=True)
+        st.link_button("↗ Open in Google Drive", selected["drive_link"], use_container_width=True)
     with link_b:
-        st.link_button("Preview in new tab", preview_url, use_container_width=True)
+        st.link_button("🖥 Preview in new tab", preview_url, use_container_width=True)
 
-    with st.expander("Selected file details"):
-        st.write(
+    with st.expander("📋 File details"):
+        st.json(
             {
                 "file_name": selected["file_name"],
-                "title": selected["title"],
                 "topic": selected["topic"],
-                "date": selected["date"],
                 "subject": selected["subject"],
+                "date": selected["date"],
+                "created_time": selected.get("created_time", ""),
                 "drive_link": selected["drive_link"],
-                "created_time": selected["created_time"],
             }
         )
 
