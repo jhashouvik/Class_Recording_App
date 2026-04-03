@@ -612,13 +612,25 @@ def drive_stream_playback_url(file_id: str, api_key: str) -> str:
     return f"http://127.0.0.1:{port}/video/{quote(file_id, safe='')}"
 
 
-# Max file size (bytes) we'll fetch into RAM on Streamlit Cloud.
-# 400 MB is safe for Cloud's 1 GB limit; larger files fall back to iframe.
-_MAX_FETCH_BYTES = 400 * 1024 * 1024
+# ── Static-file video streaming ───────────────────────────────────────────────
+# Streamlit's built-in static file server (Tornado) supports HTTP Range requests,
+# so videos streamed to ./static/ are fully seekable in the browser with zero RAM cost.
+_STATIC_VIDEO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+
+
+def _get_app_base_url() -> str:
+    """Derive the app's public base URL for constructing static file URLs."""
+    try:
+        host = st.context.headers.get("Host", "")
+        if host and not host.startswith("localhost"):
+            return f"https://{host}"
+        return f"http://{host}" if host else "http://localhost:8501"
+    except Exception:
+        return "http://localhost:8501"
 
 
 def _get_file_size(file_id: str) -> int:
-    """Return Drive file size in bytes using a HEAD-like metadata call. Returns 0 on failure."""
+    """Return Drive file size in bytes via metadata. Returns 0 on failure."""
     try:
         headers, extra_params = drive_auth_headers_and_params(API_KEY)
         params = {"fields": "size", "supportsAllDrives": "true", **extra_params}
@@ -634,20 +646,49 @@ def _get_file_size(file_id: str) -> int:
         return 0
 
 
-@st.cache_data(ttl=1800, max_entries=2)
-def fetch_video_bytes(file_id: str) -> bytes:
-    """Fetch video bytes server-side using the service account token."""
+def stream_video_to_static(file_id: str, progress_bar=None) -> str:
+    """
+    Stream Drive video to ./static/{file_id}.mp4 using the service account.
+    Returns the full public URL for use with st.video().
+    Supports arbitrarily large files — writes to disk in 4 MB chunks, never into RAM.
+    """
+    os.makedirs(_STATIC_VIDEO_DIR, exist_ok=True)
+    out_path = os.path.join(_STATIC_VIDEO_DIR, f"{file_id}.mp4")
+
+    if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
+        return f"{_get_app_base_url()}/app/static/{file_id}.mp4"
+
     headers, extra_params = drive_auth_headers_and_params(API_KEY)
     params = {"alt": "media", "supportsAllDrives": "true", **extra_params}
-    resp = requests.get(
-        f"https://www.googleapis.com/drive/v3/files/{file_id}",
-        headers=headers or {},
-        params=params,
-        timeout=(30, 600),
-        stream=True,
-    )
-    resp.raise_for_status()
-    return resp.content
+    tmp_path = out_path + ".downloading"
+    try:
+        with requests.get(
+            f"https://www.googleapis.com/drive/v3/files/{file_id}",
+            headers=headers or {},
+            params=params,
+            timeout=(60, 3600),
+            stream=True,
+        ) as resp:
+            resp.raise_for_status()
+            total = int(resp.headers.get("Content-Length", 0))
+            downloaded = 0
+            with open(tmp_path, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=4 * 1024 * 1024):
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if progress_bar and total:
+                            pct = min(downloaded / total, 1.0)
+                            progress_bar.progress(
+                                pct,
+                                text=f"Downloading… {downloaded // (1024*1024)} MB / {total // (1024*1024)} MB",
+                            )
+        os.replace(tmp_path, out_path)
+    except Exception:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise
+    return f"{_get_app_base_url()}/app/static/{file_id}.mp4"
 
 
 def format_topic(text: str) -> str:
@@ -1115,36 +1156,42 @@ with right:
         except Exception as exc:
             st.error(f"Could not start playback stream: {exc}")
     elif service_account_credentials() is not None:
-        # Cloud + service account: fetch bytes server-side (no browser Google auth needed)
+        # Cloud + service account:
+        # Stream video to ./static/ on disk (no RAM limit), serve via Tornado static file
+        # server which supports Range requests → fully seekable, any file size.
         if st.session_state.play_requested_id == file_id:
-            with st.spinner("Loading video…"):
-                try:
-                    file_size = _get_file_size(file_id)
-                    if file_size > _MAX_FETCH_BYTES:
-                        st.warning(
-                            f"This recording is {file_size // (1024*1024)} MB — too large to stream "
-                            f"in-app. Please download it directly from Google Drive."
-                        )
-                        st.session_state.play_requested_id = None
-                    else:
-                        video_bytes = fetch_video_bytes(file_id)
-                        st.video(video_bytes)
-                        st.markdown(
-                            '<p class="action-hint">⚡ Served securely via service account — no Google sign-in needed.</p>',
-                            unsafe_allow_html=True,
-                        )
-                except Exception as exc:
-                    st.error(f"Playback error: {exc}")
-                    st.session_state.play_requested_id = None
+            pb = st.progress(0, text="Starting download…")
+            try:
+                video_url = stream_video_to_static(file_id, progress_bar=pb)
+                pb.empty()
+                st.video(video_url)
+                st.markdown(
+                    '<p class="action-hint">⚡ Served securely via service account — fully seekable, no Google sign-in needed.</p>',
+                    unsafe_allow_html=True,
+                )
+            except Exception as exc:
+                pb.empty()
+                st.error(f"Playback error: {exc}")
+                st.session_state.play_requested_id = None
         else:
             st.markdown(
                 f'<div class="drive-player-wrap"><iframe src="{preview_url}" allowfullscreen></iframe></div>',
                 unsafe_allow_html=True,
             )
-            if st.button("▶ Play Video", key=f"play_btn_{file_id}", type="primary", use_container_width=True):
+            cached = os.path.exists(
+                os.path.join(_STATIC_VIDEO_DIR, f"{file_id}.mp4")
+            )
+            btn_label = "▶ Play Video (cached ⚡)" if cached else "▶ Play Video"
+            if st.button(btn_label, key=f"play_btn_{file_id}", type="primary", use_container_width=True):
                 st.session_state.play_requested_id = file_id
                 st.rerun()
-            st.caption("Click Play to load securely via the server (no Google sign-in required).")
+            if not cached:
+                file_size = _get_file_size(file_id)
+                size_mb = file_size // (1024 * 1024) if file_size else 0
+                st.caption(
+                    f"Click Play to download & stream securely ({size_mb} MB). "
+                    "First load takes a minute — subsequent plays are instant."
+                )
     else:
         # No credentials at all — iframe only
         st.markdown(
