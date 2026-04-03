@@ -19,6 +19,9 @@ st.set_page_config(page_title="DevOps Recordings", page_icon="🎥", layout="wid
 
 DRIVE_READONLY_SCOPE = "https://www.googleapis.com/auth/drive.readonly"
 
+# Streamlit Cloud sets STREAMLIT_SHARING_MODE=sharing; local dev does not.
+IS_CLOUD = os.getenv("STREAMLIT_SHARING_MODE", "") == "sharing"
+
 
 def inject_app_css() -> None:
     st.markdown(
@@ -410,6 +413,18 @@ def service_account_credentials_path() -> str:
 
 
 def service_account_credentials() -> Optional[service_account.Credentials]:
+    # 1. st.secrets section [gcp_service_account] — works on Streamlit Cloud and local secrets.toml
+    try:
+        sa_info = st.secrets.get("gcp_service_account")
+        if sa_info:
+            return service_account.Credentials.from_service_account_info(
+                dict(sa_info),
+                scopes=[DRIVE_READONLY_SCOPE],
+            )
+    except Exception:
+        pass
+
+    # 2. Local JSON file via env var — works in local dev
     path = service_account_credentials_path()
     if not path or not os.path.isfile(path):
         return None
@@ -971,8 +986,18 @@ with right:
     preview_url = drive_preview_url(selected["drive_link"])
     file_id = selected["id"]
 
-    can_stream = service_account_credentials() is not None or bool(API_KEY)
-    if not can_stream:
+    has_auth = service_account_credentials() is not None or bool(API_KEY)
+    # Local proxy uses 127.0.0.1 which is unreachable from browsers on Streamlit Cloud.
+    # Use the Drive iframe embed on cloud; use the fast range-proxy locally.
+    if IS_CLOUD:
+        if not has_auth:
+            st.caption("Add credentials in Streamlit Cloud Secrets for in-app playback.")
+        st.components.v1.iframe(preview_url, height=560, scrolling=False)
+        st.markdown(
+            '<p class="action-hint">▶ Embedded Drive player — sign in with your Google account if prompted.</p>',
+            unsafe_allow_html=True,
+        )
+    elif not has_auth:
         st.caption("Add a service account JSON (or API key for public files) for in-app playback.")
         st.components.v1.iframe(preview_url, height=560, scrolling=False)
     else:
