@@ -1,6 +1,7 @@
 import os
 import re
 import socket
+import math
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
@@ -708,6 +709,21 @@ def format_topic(text: str) -> str:
     return " ".join(formatted)
 
 
+def month_bucket_key(date_iso: str) -> str:
+    if not date_iso or len(date_iso) < 7:
+        return "Unknown"
+    return date_iso[:7]
+
+
+def month_bucket_label(bucket_key: str) -> str:
+    if bucket_key == "Unknown":
+        return "Unknown month"
+    try:
+        return datetime.strptime(bucket_key, "%Y-%m").strftime("%b %Y")
+    except Exception:
+        return bucket_key
+
+
 def parse_recording_name(filename: str) -> Dict[str, str]:
     """
     Expected format:
@@ -1024,6 +1040,31 @@ if not filtered:
 if "selected_file_id" not in st.session_state:
     st.session_state.selected_file_id = filtered[0]["id"]
 
+if "library_page" not in st.session_state:
+    st.session_state.library_page = 1
+
+if "library_page_size" not in st.session_state:
+    st.session_state.library_page_size = 25
+
+if "last_selected_file_id_for_page_sync" not in st.session_state:
+    st.session_state.last_selected_file_id_for_page_sync = st.session_state.selected_file_id
+
+if "favorite_ids" not in st.session_state:
+    st.session_state.favorite_ids = []
+
+if "watched_ids" not in st.session_state:
+    st.session_state.watched_ids = []
+
+if "last_watched_id" not in st.session_state:
+    st.session_state.last_watched_id = None
+
+# Keep favorites clean in case items disappear from Drive.
+valid_ids = {item["id"] for item in recordings}
+st.session_state.favorite_ids = [fid for fid in st.session_state.favorite_ids if fid in valid_ids]
+st.session_state.watched_ids = [wid for wid in st.session_state.watched_ids if wid in valid_ids]
+if st.session_state.last_watched_id not in valid_ids:
+    st.session_state.last_watched_id = None
+
 left, right = st.columns([1.1, 1.9])
 
 with left:
@@ -1043,20 +1084,119 @@ with left:
         drive_video_proxy_port.clear()
         st.rerun()
 
+    if st.session_state.last_watched_id in valid_ids:
+        if st.button("⏯ Resume Last Watched", key="btn_resume_last_watched", use_container_width=True):
+            st.session_state.selected_file_id = st.session_state.last_watched_id
+            st.rerun()
+
     st.markdown('<hr class="soft-divider">', unsafe_allow_html=True)
+
+    # Month-wise grouping for easier browsing at scale.
+    month_counts: Dict[str, int] = {}
+    for item in filtered:
+        bucket = month_bucket_key(item.get("date", ""))
+        month_counts[bucket] = month_counts.get(bucket, 0) + 1
+
+    month_keys_known = sorted((k for k in month_counts if k != "Unknown"), reverse=True)
+    month_options = ["All months"]
+    month_option_to_key: Dict[str, str] = {}
+    for month_key in month_keys_known + (["Unknown"] if "Unknown" in month_counts else []):
+        option = f"{month_bucket_label(month_key)} ({month_counts[month_key]})"
+        month_options.append(option)
+        month_option_to_key[option] = month_key
+
+    month_selected = st.selectbox("Month group", month_options, key="library_month_filter")
+    if month_selected == "All months":
+        library_filtered = filtered
+    else:
+        selected_month_key = month_option_to_key[month_selected]
+        library_filtered = [
+            item for item in filtered if month_bucket_key(item.get("date", "")) == selected_month_key
+        ]
+
+    if not library_filtered:
+        st.info("No recordings available for this month filter.")
+        st.stop()
+
+    recordings_by_id = {item["id"]: item for item in recordings}
+    favorite_items = [
+        recordings_by_id[fid]
+        for fid in st.session_state.favorite_ids
+        if fid in recordings_by_id
+    ]
+    if favorite_items:
+        with st.expander(f"⭐ Pinned classes ({len(favorite_items)})", expanded=True):
+            for fav in favorite_items:
+                fav_date = ""
+                if fav.get("date"):
+                    try:
+                        fav_date = datetime.strptime(fav["date"], "%Y-%m-%d").strftime("%d %b '%y")
+                    except Exception:
+                        pass
+                watched_prefix = "✅ " if fav["id"] in st.session_state.watched_ids else ""
+                fav_label = f"{watched_prefix}{fav['topic']}{'  ·  ' + fav_date if fav_date else ''}"
+                if st.button(fav_label, key=f"fav_open_{fav['id']}", use_container_width=True):
+                    st.session_state.selected_file_id = fav["id"]
+                    st.rerun()
+
+    st.markdown('<hr class="soft-divider">', unsafe_allow_html=True)
+
+    page_size_options = [15, 25, 50, 100]
+    if st.session_state.library_page_size not in page_size_options:
+        st.session_state.library_page_size = 25
+    page_size = st.selectbox(
+        "Classes per page",
+        page_size_options,
+        key="library_page_size",
+    )
+
+    total_pages = max(1, math.ceil(len(library_filtered) / page_size))
+    st.session_state.library_page = max(1, min(st.session_state.library_page, total_pages))
+
+    selected_idx_all = next(
+        (i for i, item in enumerate(library_filtered) if item["id"] == st.session_state.selected_file_id),
+        0,
+    )
+    selected_page = (selected_idx_all // page_size) + 1
+    if st.session_state.last_selected_file_id_for_page_sync != st.session_state.selected_file_id:
+        st.session_state.library_page = selected_page
+    st.session_state.last_selected_file_id_for_page_sync = st.session_state.selected_file_id
+
+    page_col_l, page_col_r = st.columns(2)
+    with page_col_l:
+        if st.button("◀ Page", key="btn_prev_page", use_container_width=True, disabled=st.session_state.library_page <= 1):
+            st.session_state.library_page -= 1
+            st.rerun()
+    with page_col_r:
+        if st.button(
+            "Page ▶",
+            key="btn_next_page",
+            use_container_width=True,
+            disabled=st.session_state.library_page >= total_pages,
+        ):
+            st.session_state.library_page += 1
+            st.rerun()
+
+    st.caption(f"Page {st.session_state.library_page} of {total_pages}")
+    st.caption(f"Watched: {len(st.session_state.watched_ids)} / {len(recordings)}")
+
+    start_idx = (st.session_state.library_page - 1) * page_size
+    end_idx = start_idx + page_size
+    visible_items = library_filtered[start_idx:end_idx]
 
     # Build flat playlist labels (topic + short date), deduplicating identical labels
     playlist_labels: List[str] = []
     playlist_ids: List[str] = []
     seen_labels: Dict[str, int] = {}
-    for item in filtered:
+    for item in visible_items:
         date_short = ""
         if item["date"]:
             try:
                 date_short = datetime.strptime(item["date"], "%Y-%m-%d").strftime("%d %b '%y")
             except Exception:
                 pass
-        base = f"{item['topic']}{'  ·  ' + date_short if date_short else ''}"
+        watched_prefix = "✅ " if item["id"] in st.session_state.watched_ids else ""
+        base = f"{watched_prefix}{item['topic']}{'  ·  ' + date_short if date_short else ''}"
         if base in seen_labels:
             seen_labels[base] += 1
             label = f"{base} ({seen_labels[base]})"
@@ -1066,10 +1206,13 @@ with left:
         playlist_labels.append(label)
         playlist_ids.append(item["id"])
 
-    current_idx = next(
-        (i for i, fid in enumerate(playlist_ids) if fid == st.session_state.selected_file_id),
-        0,
-    )
+    if not playlist_ids:
+        st.info("No recordings available on this page.")
+        st.stop()
+
+    current_idx = 0
+    if st.session_state.selected_file_id in playlist_ids:
+        current_idx = playlist_ids.index(st.session_state.selected_file_id)
 
     chosen = st.radio(
         "playlist",
@@ -1083,14 +1226,14 @@ with left:
         st.session_state.selected_file_id = playlist_ids[chosen]
         st.rerun()
 
-selected = next((x for x in filtered if x["id"] == st.session_state.selected_file_id), None)
+selected = next((x for x in library_filtered if x["id"] == st.session_state.selected_file_id), None)
 
 if not selected:
-    selected = filtered[0]
+    selected = library_filtered[0]
     st.session_state.selected_file_id = selected["id"]
 
 # Find the 1-based position of the selected item in filtered list
-selected_index = next((i + 1 for i, x in enumerate(filtered) if x["id"] == selected["id"]), 1)
+selected_index = next((i + 1 for i, x in enumerate(library_filtered) if x["id"] == selected["id"]), 1)
 
 with right:
     # Now Playing badge
@@ -1101,6 +1244,33 @@ with right:
 
     # Title
     st.markdown(f'<div class="player-title">{selected["topic"]}</div>', unsafe_allow_html=True)
+
+    is_favorite = selected["id"] in st.session_state.favorite_ids
+    is_watched = selected["id"] in st.session_state.watched_ids
+    action_col_l, action_col_r = st.columns(2)
+    with action_col_l:
+        favorite_btn_label = "⭐ Unpin from top" if is_favorite else "☆ Pin this class"
+        if st.button(favorite_btn_label, key=f"btn_favorite_toggle_{selected['id']}", use_container_width=True):
+            if is_favorite:
+                st.session_state.favorite_ids = [
+                    fid for fid in st.session_state.favorite_ids if fid != selected["id"]
+                ]
+            else:
+                st.session_state.favorite_ids = [selected["id"], *st.session_state.favorite_ids]
+            st.rerun()
+    with action_col_r:
+        watched_btn_label = "✅ Mark Unwatched" if is_watched else "☑ Mark Watched"
+        if st.button(watched_btn_label, key=f"btn_watched_toggle_{selected['id']}", use_container_width=True):
+            if is_watched:
+                st.session_state.watched_ids = [
+                    wid for wid in st.session_state.watched_ids if wid != selected["id"]
+                ]
+                if st.session_state.last_watched_id == selected["id"]:
+                    st.session_state.last_watched_id = st.session_state.watched_ids[0] if st.session_state.watched_ids else None
+            else:
+                st.session_state.watched_ids = [selected["id"], *st.session_state.watched_ids]
+                st.session_state.last_watched_id = selected["id"]
+            st.rerun()
 
     # Metadata pill row
     created_fmt = ""
@@ -1116,7 +1286,7 @@ with right:
 <div class="meta-row">
     <span class="meta-pill"><span class="icon">📂</span> {selected["subject"]}</span>
     <span class="meta-pill"><span class="icon">📅</span> {selected["date"] or "Unknown date"}</span>
-    <span class="meta-pill"><span class="icon">🎬</span> Recording #{selected_index} of {len(filtered)}</span>
+    <span class="meta-pill"><span class="icon">🎬</span> Recording #{selected_index} of {len(library_filtered)}</span>
     {"<span class='meta-pill'><span class='icon'>🕒</span> Uploaded " + created_fmt + "</span>" if created_fmt else ""}
 </div>
     """
@@ -1205,18 +1375,18 @@ with right:
 
     # Navigation buttons
     nav_prev, nav_next = st.columns(2)
-    current_pos = next((i for i, x in enumerate(filtered) if x["id"] == selected["id"]), 0)
+    current_pos = next((i for i, x in enumerate(library_filtered) if x["id"] == selected["id"]), 0)
     with nav_prev:
         if current_pos > 0:
             if st.button("⬅ Previous", key="btn_prev", use_container_width=True):
-                st.session_state.selected_file_id = filtered[current_pos - 1]["id"]
+                st.session_state.selected_file_id = library_filtered[current_pos - 1]["id"]
                 st.rerun()
         else:
             st.button("⬅ Previous", key="btn_prev", use_container_width=True, disabled=True)
     with nav_next:
-        if current_pos < len(filtered) - 1:
+        if current_pos < len(library_filtered) - 1:
             if st.button("Next ➡", key="btn_next", use_container_width=True):
-                st.session_state.selected_file_id = filtered[current_pos + 1]["id"]
+                st.session_state.selected_file_id = library_filtered[current_pos + 1]["id"]
                 st.rerun()
         else:
             st.button("Next ➡", key="btn_next", use_container_width=True, disabled=True)
