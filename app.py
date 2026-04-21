@@ -190,6 +190,51 @@ def inject_app_css(dark: bool = False) -> None:
         margin-top: 0.2rem;
     }}
 
+    /* ── Topic filter chips ── */
+    .chips-row {{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        margin: 0.6rem 0 0.9rem 0;
+        align-items: center;
+    }}
+    .chip {{
+        display: inline-flex;
+        align-items: center;
+        gap: 0.28rem;
+        background: {chip_bg};
+        border: 1.5px solid {chip_brd};
+        border-radius: 999px;
+        padding: 0.28rem 0.75rem;
+        font-size: 0.78rem;
+        color: {chip_text};
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.18s, border-color 0.18s, transform 0.15s, box-shadow 0.18s;
+        user-select: none;
+    }}
+    .chip:hover {{
+        background: {accent_dk}22;
+        border-color: {accent};
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px {accent}33;
+    }}
+    .chip.active {{
+        background: {chip_sel};
+        border-color: {chip_sel};
+        color: #fff;
+        box-shadow: 0 4px 16px {chip_sel}55;
+        transform: translateY(-1px);
+    }}
+    .chips-label {{
+        font-size: 0.76rem;
+        font-weight: 700;
+        color: {text_sec};
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-right: 0.25rem;
+    }}
+
     /* ── Topic filter radio as chips ── */
     div[data-testid="stRadio"][data-key="topic_filter_radio"] > div:first-child {{
         font-size: 0.76rem !important;
@@ -1270,6 +1315,15 @@ with ctrl_r:
 from collections import Counter
 topic_counts = Counter(r["topic"] for r in recordings)
 top_topics = ["All"] + [t for t, _ in topic_counts.most_common(12)]
+
+chips_html_parts = ['<div class="chips-row"><span class="chips-label">🏷 Filter:</span>']
+for t in top_topics:
+    active_cls = " active" if st.session_state.topic_filter == t else ""
+    chips_html_parts.append(
+        f'<span class="chip{active_cls}" id="chip_{t.replace(" ","_")}">{t}</span>'
+    )
+chips_html_parts.append("</div>")
+st.markdown("".join(chips_html_parts), unsafe_allow_html=True)
 
 # Single horizontal radio styled as chips — no duplication
 _current_idx = top_topics.index(st.session_state.topic_filter) if st.session_state.topic_filter in top_topics else 0
