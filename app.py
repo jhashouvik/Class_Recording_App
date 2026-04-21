@@ -1339,7 +1339,6 @@ top_topics = PREDEFINED_TOPICS
 # Single horizontal radio styled as chips
 _current_idx = top_topics.index(st.session_state.topic_filter) if st.session_state.topic_filter in top_topics else 0
 _chosen_topic = st.radio(
-    "🏷 Filter by topic",
     top_topics,
     index=_current_idx,
     horizontal=True,
