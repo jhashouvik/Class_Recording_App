@@ -346,14 +346,14 @@ def inject_app_css(dark: bool = False) -> None:
         margin: 0.85rem 0 0.45rem 0;
     }}
 
-    /* ── Playlist radio ── */
-    div[data-testid="stRadio"] {{
+    /* ── Playlist radio (scoped to sidebar column only) ── */
+    [data-testid="stColumn"] div[data-testid="stRadio"] {{
         margin-top: 0.2rem;
     }}
-    div[data-testid="stRadio"] > div:first-child {{
+    [data-testid="stColumn"] div[data-testid="stRadio"] > div:first-child {{
         display: none;
     }}
-    div[data-testid="stRadio"] label {{
+    [data-testid="stColumn"] div[data-testid="stRadio"] label {{
         display: flex !important;
         align-items: center !important;
         width: 100% !important;
@@ -368,14 +368,15 @@ def inject_app_css(dark: bool = False) -> None:
         color: {text_pri} !important;
         font-weight: 500 !important;
         line-height: 1.3 !important;
+        border-radius: 10px !important;
     }}
-    div[data-testid="stRadio"] label:hover {{
+    [data-testid="stColumn"] div[data-testid="stRadio"] label:hover {{
         border-color: {accent} !important;
         background: {accent_lt} !important;
         transform: translateX(4px) !important;
         box-shadow: 0 3px 12px {accent}1a !important;
     }}
-    div[data-testid="stRadio"] label:has(input:checked) {{
+    [data-testid="stColumn"] div[data-testid="stRadio"] label:has(input:checked) {{
         border-color: {accent} !important;
         background: linear-gradient(135deg, {accent_lt} 0%, {accent_lt2} 100%) !important;
         box-shadow: 0 0 0 3px {accent}22, inset 4px 0 0 {accent} !important;
@@ -383,7 +384,7 @@ def inject_app_css(dark: bool = False) -> None:
         font-weight: 700 !important;
         transform: translateX(4px) !important;
     }}
-    div[data-testid="stRadio"] label input[type="radio"] {{
+    [data-testid="stColumn"] div[data-testid="stRadio"] label input[type="radio"] {{
         position: absolute !important;
         width: 1px !important;
         height: 1px !important;
@@ -391,7 +392,7 @@ def inject_app_css(dark: bool = False) -> None:
         margin: 0 !important;
         padding: 0 !important;
     }}
-    div[data-testid="stRadio"] label > div {{
+    [data-testid="stColumn"] div[data-testid="stRadio"] label > div {{
         font-size: 0.84rem !important;
         line-height: 1.35 !important;
     }}
@@ -406,25 +407,24 @@ def inject_app_css(dark: bool = False) -> None:
         margin-bottom: 0.18rem;
     }}
 
-    /* ── Topic filter radio as chips (must come after playlist radio rules) ── */
-    div[data-testid="stRadio"][data-key="topic_filter_radio"] {{
-        margin-top: 0 !important;
+    /* ── Topic filter radio as chips (outside columns — not overridden by playlist CSS) ── */
+    div[data-testid="stRadio"] {{
+        margin-top: 0;
     }}
-    div[data-testid="stRadio"][data-key="topic_filter_radio"] > div:first-child {{
-        display: block !important;
-        font-size: 0.76rem !important;
-        font-weight: 700 !important;
-        color: {text_sec} !important;
-        text-transform: uppercase !important;
-        letter-spacing: 0.06em !important;
-        margin-bottom: 0.45rem !important;
+    div[data-testid="stRadio"] > div:first-child {{
+        font-size: 0.76rem;
+        font-weight: 700;
+        color: {text_sec};
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 0.45rem;
     }}
-    div[data-testid="stRadio"][data-key="topic_filter_radio"] [data-testid="stRadioOptions"] {{
+    div[data-testid="stRadio"] [data-testid="stRadioOptions"] {{
         display: flex !important;
         flex-wrap: wrap !important;
         gap: 0.4rem !important;
     }}
-    div[data-testid="stRadio"][data-key="topic_filter_radio"] label {{
+    div[data-testid="stRadio"] label {{
         display: inline-flex !important;
         align-items: center !important;
         width: auto !important;
@@ -441,20 +441,20 @@ def inject_app_css(dark: bool = False) -> None:
         transform: none !important;
         line-height: normal !important;
     }}
-    div[data-testid="stRadio"][data-key="topic_filter_radio"] label:hover {{
+    div[data-testid="stRadio"] label:hover {{
         background: {accent_dk}22 !important;
         border-color: {accent} !important;
         transform: translateY(-2px) !important;
         box-shadow: 0 4px 12px {accent}33 !important;
     }}
-    div[data-testid="stRadio"][data-key="topic_filter_radio"] label:has(input:checked) {{
+    div[data-testid="stRadio"] label:has(input:checked) {{
         background: {chip_sel} !important;
         border-color: {chip_sel} !important;
         color: #fff !important;
         box-shadow: 0 4px 14px {chip_sel}55 !important;
         transform: translateY(-1px) !important;
     }}
-    div[data-testid="stRadio"][data-key="topic_filter_radio"] label input[type="radio"] {{
+    div[data-testid="stRadio"] label input[type="radio"] {{
         position: absolute !important;
         width: 1px !important; height: 1px !important;
         opacity: 0 !important; margin: 0 !important; padding: 0 !important;
