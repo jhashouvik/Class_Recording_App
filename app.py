@@ -412,12 +412,7 @@ def inject_app_css(dark: bool = False) -> None:
         margin-top: 0;
     }}
     div[data-testid="stRadio"] > div:first-child {{
-        font-size: 0.76rem;
-        font-weight: 700;
-        color: {text_sec};
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        margin-bottom: 0.45rem;
+        display: none !important;
     }}
     div[data-testid="stRadio"] [data-testid="stRadioOptions"] {{
         display: flex !important;
