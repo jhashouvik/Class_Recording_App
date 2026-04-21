@@ -1344,6 +1344,7 @@ _chosen_topic = st.radio(
     index=_current_idx,
     horizontal=True,
     key="topic_filter_radio",
+    label_visibility="collapsed",
 )
 if _chosen_topic != st.session_state.topic_filter:
     st.session_state.topic_filter = _chosen_topic
