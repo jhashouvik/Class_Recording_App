@@ -422,7 +422,8 @@ def inject_app_css(dark: bool = False) -> None:
     div[data-testid="stRadio"] [data-testid="stRadioOptions"] {{
         display: flex !important;
         flex-wrap: wrap !important;
-        gap: 0.2rem !important;
+        gap: 0.15rem !important;
+        row-gap: 0.25rem !important;
     }}
     div[data-testid="stRadio"] label {{
         display: inline-flex !important;
@@ -1444,40 +1445,6 @@ with left:
         if st.button("⏯ Resume Last Watched", key="btn_resume_last_watched", use_container_width=True):
             st.session_state.selected_file_id = st.session_state.last_watched_id
             st.rerun()
-
-    # ── Watch progress donut ring ──────────────────────────────────────────
-    _total = len(recordings)
-    _watched = len(st.session_state.watched_ids)
-    _pct_w = _watched / _total if _total else 0
-    _radius = 26
-    _circ = 2 * 3.14159 * _radius
-    _dash = _pct_w * _circ
-    _gap = _circ - _dash
-    _streak = len(st.session_state.watched_ids)
-    _pct_txt = f"{int(_pct_w * 100)}%"
-    st.markdown(
-        f"""
-<div class="progress-ring-wrap">
-  <svg class="progress-ring-svg" width="68" height="68" viewBox="0 0 68 68">
-    <circle class="progress-ring-bg" cx="34" cy="34" r="{_radius}"/>
-    <circle class="progress-ring-fill"
-      cx="34" cy="34" r="{_radius}"
-      stroke-dasharray="{_dash:.1f} {_gap:.1f}"
-    />
-    <text x="34" y="30" text-anchor="middle" class="progress-ring-pct">{_pct_txt}</text>
-    <text x="34" y="43" text-anchor="middle" class="progress-ring-text">watched</text>
-  </svg>
-  <div class="ring-detail">
-    <p class="ring-detail-title">Course Progress</p>
-    <p class="ring-detail-sub">{_watched} of {_total} classes watched</p>
-    {"<p class='ring-streak'>🔥 " + str(_streak) + " classes completed</p>" if _streak else ""}
-  </div>
-</div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown('<hr class="soft-divider">', unsafe_allow_html=True)
 
     # Month-wise grouping for easier browsing at scale.
     month_counts: Dict[str, int] = {}
