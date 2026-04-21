@@ -422,7 +422,7 @@ def inject_app_css(dark: bool = False) -> None:
     div[data-testid="stRadio"] [data-testid="stRadioOptions"] {{
         display: flex !important;
         flex-wrap: wrap !important;
-        gap: 0.4rem !important;
+        gap: 0.2rem !important;
     }}
     div[data-testid="stRadio"] label {{
         display: inline-flex !important;
