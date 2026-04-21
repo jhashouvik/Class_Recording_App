@@ -30,45 +30,92 @@ def _proxy_available() -> bool:
     return bool(path) and os.path.isfile(path)
 
 
-def inject_app_css() -> None:
+def inject_app_css(dark: bool = False) -> None:
+    bg         = "#0f172a"   if dark else "#f8fafc"
+    surface    = "#1e293b"   if dark else "#ffffff"
+    surface2   = "#162032"   if dark else "#f8fafc"
+    border     = "#334155"   if dark else "#e2e8f0"
+    text_pri   = "#f1f5f9"   if dark else "#0f172a"
+    text_sec   = "#94a3b8"   if dark else "#64748b"
+    accent     = "#22d3ee"   if dark else "#0891b2"
+    accent_dk  = "#06b6d4"   if dark else "#0e7490"
+    accent_lt  = "#0e4f6e"   if dark else "#ecfeff"
+    accent_lt2 = "#155e75"   if dark else "#cffafe"
+    chip_bg    = "#1e3a4f"   if dark else "#ecfeff"
+    chip_brd   = "#22d3ee55" if dark else "#a5f3fc"
+    chip_sel   = "#22d3ee"   if dark else "#0891b2"
+    chip_text  = "#7dd3fc"   if dark else "#0e7490"
+    pill_bg    = "#1e293b"   if dark else "#f1f5f9"
+    pill_brd   = "#334155"   if dark else "#e2e8f0"
+    pill_text  = "#cbd5e1"   if dark else "#334155"
+    hero_from  = "#060d18"   if dark else "#0f172a"
+    hero_to    = "#0e4f6e"
+    body_bg    = "#0a1628"   if dark else "#f0f4f8"
+    expander_bg= "#1a2744"   if dark else "#fafbfc"
+
     st.markdown(
-        """
+        f"""
 <style>
+    /* ── Root background ── */
+    .stApp, .main, [data-testid="stAppViewContainer"] {{
+        background: {body_bg} !important;
+    }}
+    [data-testid="stSidebar"] {{
+        background: {surface2} !important;
+        border-right: 1px solid {border} !important;
+    }}
+    [data-testid="stSidebar"] * {{
+        color: {text_pri} !important;
+    }}
+
     /* ── Layout ── */
-    .block-container {
+    .block-container {{
         padding-top: 0.75rem !important;
         max-width: 1380px !important;
-    }
+    }}
 
     /* ── Hero banner ── */
-    .hero-banner {
-        background: linear-gradient(135deg, #0f172a 0%, #0e4f6e 60%, #0891b2 100%);
+    .hero-banner {{
+        background: linear-gradient(135deg, {hero_from} 0%, {hero_to} 60%, #0891b2 100%);
         border-radius: 20px;
         padding: 1.6rem 2rem 1.4rem 2rem;
         margin-bottom: 1.25rem;
         position: relative;
         overflow: hidden;
-    }
-    .hero-banner::before {
+    }}
+    .hero-banner::before {{
         content: "";
         position: absolute;
         inset: 0;
         background: radial-gradient(ellipse at 80% 50%, rgba(8,145,178,0.35) 0%, transparent 65%);
         pointer-events: none;
-    }
-    .hero-title {
+    }}
+    /* ── Floating particles ── */
+    @keyframes float-up {{
+        0%   {{ transform: translateY(0) scale(1); opacity: 0.25; }}
+        50%  {{ opacity: 0.55; }}
+        100% {{ transform: translateY(-80px) scale(1.3); opacity: 0; }}
+    }}
+    .hero-particle {{
+        position: absolute;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.18);
+        animation: float-up linear infinite;
+        pointer-events: none;
+    }}
+    .hero-title {{
         font-size: 2rem;
         font-weight: 800;
         letter-spacing: -0.04em;
         color: #f0f9ff !important;
         margin: 0 0 0.3rem 0;
-    }
-    .hero-sub {
+    }}
+    .hero-sub {{
         color: #bae6fd;
         font-size: 0.92rem;
         margin: 0;
-    }
-    .hero-badge {
+    }}
+    .hero-badge {{
         display: inline-flex;
         align-items: center;
         gap: 0.4rem;
@@ -80,85 +127,210 @@ def inject_app_css() -> None:
         color: #e0f2fe;
         font-weight: 600;
         margin-top: 0.7rem;
-    }
+    }}
+    .dark-toggle {{
+        position: absolute;
+        top: 1.1rem; right: 1.2rem;
+        background: rgba(255,255,255,0.15);
+        border: 1px solid rgba(255,255,255,0.25);
+        border-radius: 999px;
+        padding: 0.3rem 0.85rem;
+        font-size: 0.8rem;
+        color: #e0f2fe;
+        font-weight: 700;
+        cursor: pointer;
+        backdrop-filter: blur(6px);
+        transition: background 0.2s;
+        z-index: 10;
+    }}
+    .dark-toggle:hover {{ background: rgba(255,255,255,0.28); }}
 
     /* ── Stats bar ── */
-    .stats-bar {
+    @keyframes count-up {{
+        from {{ transform: translateY(12px); opacity: 0; }}
+        to   {{ transform: translateY(0);    opacity: 1; }}
+    }}
+    .stats-bar {{
         display: flex;
         gap: 1rem;
         margin-bottom: 1.1rem;
         flex-wrap: wrap;
-    }
-    .stat-card {
+    }}
+    .stat-card {{
         flex: 1;
         min-width: 120px;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
+        background: {surface};
+        border: 1px solid {border};
         border-radius: 14px;
         padding: 0.75rem 1rem;
         text-align: center;
         transition: transform 0.18s ease, box-shadow 0.18s ease;
-    }
-    .stat-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 8px 24px rgba(15,23,42,0.10);
-    }
-    .stat-number {
+        animation: count-up 0.5s ease both;
+    }}
+    .stat-card:nth-child(1) {{ animation-delay: 0.05s; }}
+    .stat-card:nth-child(2) {{ animation-delay: 0.12s; }}
+    .stat-card:nth-child(3) {{ animation-delay: 0.19s; }}
+    .stat-card:nth-child(4) {{ animation-delay: 0.26s; }}
+    .stat-card:hover {{
+        transform: translateY(-5px) scale(1.03);
+        box-shadow: 0 12px 32px rgba(8,145,178,0.18);
+    }}
+    .stat-number {{
         font-size: 1.7rem;
         font-weight: 800;
-        color: #0891b2;
+        color: {accent};
         line-height: 1;
-    }
-    .stat-label {
+    }}
+    .stat-label {{
         font-size: 0.72rem;
-        color: #64748b;
+        color: {text_sec};
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         margin-top: 0.2rem;
-    }
+    }}
+
+    /* ── Topic filter chips ── */
+    .chips-row {{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        margin: 0.6rem 0 0.9rem 0;
+        align-items: center;
+    }}
+    .chip {{
+        display: inline-flex;
+        align-items: center;
+        gap: 0.28rem;
+        background: {chip_bg};
+        border: 1.5px solid {chip_brd};
+        border-radius: 999px;
+        padding: 0.28rem 0.75rem;
+        font-size: 0.78rem;
+        color: {chip_text};
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.18s, border-color 0.18s, transform 0.15s, box-shadow 0.18s;
+        user-select: none;
+    }}
+    .chip:hover {{
+        background: {accent_dk}22;
+        border-color: {accent};
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px {accent}33;
+    }}
+    .chip.active {{
+        background: {chip_sel};
+        border-color: {chip_sel};
+        color: #fff;
+        box-shadow: 0 4px 16px {chip_sel}55;
+        transform: translateY(-1px);
+    }}
+    .chips-label {{
+        font-size: 0.76rem;
+        font-weight: 700;
+        color: {text_sec};
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-right: 0.25rem;
+    }}
+
+    /* ── Progress donut ── */
+    .progress-ring-wrap {{
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        background: {surface};
+        border: 1px solid {border};
+        border-radius: 16px;
+        padding: 0.85rem 1.1rem;
+        margin-bottom: 0.9rem;
+    }}
+    .progress-ring-svg {{ flex-shrink: 0; }}
+    .progress-ring-bg {{ fill: none; stroke: {border}; stroke-width: 6; }}
+    .progress-ring-fill {{
+        fill: none;
+        stroke: {accent};
+        stroke-width: 6;
+        stroke-linecap: round;
+        transform-origin: 50%% 50%%;
+        transform: rotate(-90deg);
+        transition: stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1);
+    }}
+    .progress-ring-text {{
+        font-size: 0.72rem;
+        font-weight: 700;
+        fill: {text_pri};
+    }}
+    .progress-ring-pct {{
+        font-size: 1rem;
+        font-weight: 800;
+        fill: {accent};
+    }}
+    .ring-detail {{}}
+    .ring-detail-title {{
+        font-size: 0.84rem;
+        font-weight: 700;
+        color: {text_pri};
+        margin: 0 0 0.2rem 0;
+    }}
+    .ring-detail-sub {{
+        font-size: 0.75rem;
+        color: {text_sec};
+        margin: 0;
+    }}
+    .ring-streak {{
+        margin-top: 0.4rem;
+        font-size: 0.73rem;
+        font-weight: 700;
+        color: #f59e0b;
+    }}
 
     /* ── Search bar ── */
-    [data-testid="stTextInput"] label {
+    [data-testid="stTextInput"] label {{
         font-weight: 700 !important;
-        color: #0f172a !important;
+        color: {text_pri} !important;
         font-size: 0.85rem !important;
         letter-spacing: 0.03em !important;
         text-transform: uppercase !important;
-    }
-    [data-testid="stTextInput"] [data-baseweb="input"] {
+    }}
+    [data-testid="stTextInput"] [data-baseweb="input"] {{
         border-radius: 14px !important;
-        border-color: #e2e8f0 !important;
-        background: #f8fafc !important;
+        border-color: {border} !important;
+        background: {surface} !important;
+        color: {text_pri} !important;
         transition: border-color 0.2s, box-shadow 0.2s, background 0.2s !important;
-    }
-    [data-testid="stTextInput"] [data-baseweb="input"]:focus-within {
-        border-color: #0891b2 !important;
-        background: #fff !important;
-        box-shadow: 0 0 0 4px rgba(8,145,178,0.15) !important;
-    }
+    }}
+    [data-testid="stTextInput"] [data-baseweb="input"]:focus-within {{
+        border-color: {accent} !important;
+        background: {surface} !important;
+        box-shadow: 0 0 0 4px {accent}26 !important;
+    }}
+    [data-testid="stTextInput"] input {{
+        color: {text_pri} !important;
+    }}
 
     /* ── Sidebar library panel ── */
-    .lib-header {
+    .lib-header {{
         display: flex;
         align-items: center;
         justify-content: space-between;
         margin-bottom: 0.5rem;
-    }
-    .lib-title {
+    }}
+    .lib-title {{
         font-size: 1rem;
         font-weight: 700;
-        color: #0f172a;
-    }
-    .lib-count {
-        background: #0891b2;
+        color: {text_pri};
+    }}
+    .lib-count {{
+        background: {accent};
         color: #fff;
         border-radius: 999px;
         padding: 0.18rem 0.6rem;
         font-size: 0.72rem;
         font-weight: 700;
-    }
-    .date-chip {
+    }}
+    .date-chip {{
         display: inline-flex;
         align-items: center;
         gap: 0.3rem;
@@ -166,98 +338,100 @@ def inject_app_css() -> None:
         font-weight: 700;
         letter-spacing: 0.07em;
         text-transform: uppercase;
-        color: #0e7490;
-        background: linear-gradient(135deg, #ecfeff 0%, #cffafe 100%);
-        border: 1px solid #a5f3fc;
+        color: {accent_dk};
+        background: linear-gradient(135deg, {accent_lt} 0%, {accent_lt2} 100%);
+        border: 1px solid {chip_brd};
         border-radius: 999px;
         padding: 0.32rem 0.8rem;
         margin: 0.85rem 0 0.45rem 0;
-    }
+    }}
 
     /* ── Playlist radio ── */
-    div[data-testid="stRadio"] {
+    div[data-testid="stRadio"] {{
         margin-top: 0.2rem;
-    }
-    /* Hide the widget label */
-    div[data-testid="stRadio"] > div:first-child {
+    }}
+    div[data-testid="stRadio"] > div:first-child {{
         display: none;
-    }
-    div[data-testid="stRadio"] label {
+    }}
+    div[data-testid="stRadio"] label {{
         display: flex !important;
         align-items: center !important;
         width: 100% !important;
-        border: 1.5px solid #e2e8f0 !important;
+        border: 1.5px solid {border} !important;
         border-radius: 10px !important;
         padding: 0.58rem 0.9rem !important;
         margin-bottom: 0.28rem !important;
-        background: #fff !important;
+        background: {surface} !important;
         transition: border-color 0.18s, background 0.18s, transform 0.15s, box-shadow 0.18s !important;
         cursor: pointer !important;
         font-size: 0.84rem !important;
-        color: #334155 !important;
+        color: {text_pri} !important;
         font-weight: 500 !important;
         line-height: 1.3 !important;
-    }
-    div[data-testid="stRadio"] label:hover {
-        border-color: #67e8f9 !important;
-        background: #f0fdff !important;
+    }}
+    div[data-testid="stRadio"] label:hover {{
+        border-color: {accent} !important;
+        background: {accent_lt} !important;
         transform: translateX(4px) !important;
-        box-shadow: 0 3px 12px rgba(8,145,178,0.1) !important;
-    }
-    div[data-testid="stRadio"] label:has(input:checked) {
-        border-color: #0891b2 !important;
-        background: linear-gradient(135deg, #ecfeff 0%, #ddf6fd 100%) !important;
-        box-shadow: 0 0 0 3px rgba(8,145,178,0.13), inset 4px 0 0 #0891b2 !important;
-        color: #0e4f6e !important;
+        box-shadow: 0 3px 12px {accent}1a !important;
+    }}
+    div[data-testid="stRadio"] label:has(input:checked) {{
+        border-color: {accent} !important;
+        background: linear-gradient(135deg, {accent_lt} 0%, {accent_lt2} 100%) !important;
+        box-shadow: 0 0 0 3px {accent}22, inset 4px 0 0 {accent} !important;
+        color: {accent_dk} !important;
         font-weight: 700 !important;
         transform: translateX(4px) !important;
-    }
-    /* Hide the radio circle dot */
-    div[data-testid="stRadio"] label input[type="radio"] {
+    }}
+    div[data-testid="stRadio"] label input[type="radio"] {{
         position: absolute !important;
         width: 1px !important;
         height: 1px !important;
         opacity: 0 !important;
         margin: 0 !important;
         padding: 0 !important;
-    }
-    div[data-testid="stRadio"] label > div {
+    }}
+    div[data-testid="stRadio"] label > div {{
         font-size: 0.84rem !important;
         line-height: 1.35 !important;
-    }
-    .playlist-date-sep {
+    }}
+    .playlist-date-sep {{
         font-size: 0.68rem;
         font-weight: 700;
         letter-spacing: 0.06em;
         text-transform: uppercase;
-        color: #94a3b8;
+        color: {text_sec};
         padding: 0.55rem 0.2rem 0.2rem 0.2rem;
-        border-bottom: 1px solid #f1f5f9;
+        border-bottom: 1px solid {border};
         margin-bottom: 0.18rem;
-    }
+    }}
 
     /* ── Buttons ── */
-    .stButton > button {
+    .stButton > button {{
         border-radius: 12px !important;
         font-weight: 600 !important;
         transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease !important;
-    }
-    .stButton > button:hover {
+    }}
+    .stButton > button:hover {{
         transform: translateY(-2px) !important;
         box-shadow: 0 6px 18px rgba(15,23,42,0.14) !important;
-    }
+    }}
 
     /* ── Now Playing badge ── */
-    @keyframes pulse-ring {
-        0%   { box-shadow: 0 0 0 0 rgba(8,145,178,0.5); }
-        70%  { box-shadow: 0 0 0 8px rgba(8,145,178,0); }
-        100% { box-shadow: 0 0 0 0 rgba(8,145,178,0); }
-    }
-    .now-playing {
+    @keyframes pulse-ring {{
+        0%   {{ box-shadow: 0 0 0 0 {accent}80; }}
+        70%  {{ box-shadow: 0 0 0 10px {accent}00; }}
+        100% {{ box-shadow: 0 0 0 0 {accent}00; }}
+    }}
+    @keyframes blink-dot {{
+        0%, 100% {{ opacity: 1; transform: scale(1); }}
+        50%       {{ opacity: 0.5; transform: scale(0.7); }}
+    }}
+    .now-playing {{
         display: inline-flex;
         align-items: center;
         gap: 0.45rem;
-        background: linear-gradient(135deg, #0891b2, #0e7490);
+        background: linear-gradient(135deg, {accent}, {accent_dk});
         color: #fff;
         border-radius: 999px;
         padding: 0.32rem 0.9rem;
@@ -266,151 +440,212 @@ def inject_app_css() -> None:
         letter-spacing: 0.04em;
         animation: pulse-ring 2s infinite;
         margin-bottom: 0.5rem;
-    }
-    .now-playing-dot {
+    }}
+    .now-playing-dot {{
         width: 7px;
         height: 7px;
         background: #7dd3fc;
         border-radius: 50%;
-        animation: pulse-ring 1.2s infinite;
-    }
+        animation: blink-dot 1.2s infinite;
+    }}
 
     /* ── Topic title ── */
-    .player-title {
+    .player-title {{
         font-size: 1.65rem;
         font-weight: 800;
-        color: #0f172a;
+        color: {text_pri};
         letter-spacing: -0.03em;
         line-height: 1.2;
         margin: 0.2rem 0 0.5rem 0;
-    }
+    }}
 
     /* ── Metadata pill row ── */
-    .meta-row {
+    .meta-row {{
         display: flex;
         flex-wrap: wrap;
         gap: 0.5rem;
         margin-bottom: 0.9rem;
-    }
-    .meta-pill {
+    }}
+    .meta-pill {{
         display: inline-flex;
         align-items: center;
         gap: 0.3rem;
-        background: #f1f5f9;
-        border: 1px solid #e2e8f0;
+        background: {pill_bg};
+        border: 1px solid {pill_brd};
         border-radius: 999px;
         padding: 0.28rem 0.75rem;
         font-size: 0.78rem;
-        color: #334155;
+        color: {pill_text};
         font-weight: 600;
-    }
-    .meta-pill span.icon { font-size: 0.85rem; }
+    }}
+    .meta-pill span.icon {{ font-size: 0.85rem; }}
 
-    /* ── Video player (local proxy) ── */
-    .stVideo {
+    /* ── Video player ── */
+    .stVideo {{
         border-radius: 18px !important;
         overflow: hidden !important;
-        border: 2px solid #e2e8f0 !important;
+        border: 2px solid {border} !important;
         box-shadow: 0 24px 64px -12px rgba(15,23,42,0.22) !important;
         transition: box-shadow 0.3s ease !important;
-    }
-    .stVideo:hover {
-        box-shadow: 0 32px 80px -12px rgba(8,145,178,0.28) !important;
-    }
-    .stVideo video { border-radius: 18px !important; }
+    }}
+    .stVideo:hover {{
+        box-shadow: 0 32px 80px -12px {accent}44 !important;
+    }}
+    .stVideo video {{ border-radius: 18px !important; }}
 
-    /* ── Responsive Drive iframe embed (16:9) ── */
-    .drive-player-wrap {
+    /* ── Drive iframe embed (16:9) ── */
+    .drive-player-wrap {{
         position: relative;
         width: 100%;
-        padding-bottom: 56.25%;
+        padding-bottom: 56.25%%;
         height: 0;
         overflow: hidden;
         border-radius: 18px;
-        border: 2px solid #e2e8f0;
+        border: 2px solid {border};
         box-shadow: 0 24px 64px -12px rgba(15,23,42,0.22);
         transition: box-shadow 0.3s ease;
         margin-bottom: 0.5rem;
-    }
-    .drive-player-wrap:hover {
-        box-shadow: 0 32px 80px -12px rgba(8,145,178,0.28);
-    }
-    .drive-player-wrap iframe {
+    }}
+    .drive-player-wrap:hover {{
+        box-shadow: 0 32px 80px -12px {accent}44;
+    }}
+    .drive-player-wrap iframe {{
         position: absolute;
         top: 0; left: 0;
-        width: 100%;
-        height: 100%;
+        width: 100%%;
+        height: 100%%;
         border: 0;
         border-radius: 16px;
-    }
+    }}
 
     /* ── Link buttons ── */
-    [data-testid="stLinkButton"] a {
+    [data-testid="stLinkButton"] a {{
         border-radius: 12px !important;
         font-weight: 600 !important;
         transition: transform 0.15s ease, box-shadow 0.15s ease !important;
-    }
-    [data-testid="stLinkButton"] a:hover {
+    }}
+    [data-testid="stLinkButton"] a:hover {{
         transform: translateY(-2px) !important;
-        box-shadow: 0 6px 18px rgba(8,145,178,0.22) !important;
-    }
+        box-shadow: 0 6px 18px {accent}33 !important;
+    }}
 
     /* ── Metrics ── */
-    [data-testid="stMetric"] {
-        background: #f8fafc !important;
-        border: 1px solid #e2e8f0 !important;
+    [data-testid="stMetric"] {{
+        background: {surface} !important;
+        border: 1px solid {border} !important;
         border-radius: 14px !important;
         padding: 0.6rem 1rem !important;
         transition: box-shadow 0.18s !important;
-    }
-    [data-testid="stMetric"]:hover {
+    }}
+    [data-testid="stMetric"]:hover {{
         box-shadow: 0 4px 14px rgba(15,23,42,0.08) !important;
-    }
-    [data-testid="stMetric"] label { color: #64748b !important; }
-    [data-testid="stMetric"] [data-testid="stMetricValue"] { color: #0f172a !important; font-weight: 700 !important; }
+    }}
+    [data-testid="stMetric"] label {{ color: {text_sec} !important; }}
+    [data-testid="stMetric"] [data-testid="stMetricValue"] {{ color: {text_pri} !important; font-weight: 700 !important; }}
 
     /* ── Expanders ── */
-    div[data-testid="stExpander"] {
+    div[data-testid="stExpander"] {{
         border-radius: 14px !important;
-        border: 1px solid #e2e8f0 !important;
-        background: #fafbfc !important;
-    }
+        border: 1px solid {border} !important;
+        background: {expander_bg} !important;
+    }}
 
-    /* ── Progress bar (search match) ── */
-    .match-bar-wrap {
-        margin: 0.35rem 0 0.9rem 0;
-    }
-    .match-bar-bg {
-        background: #e2e8f0;
+    /* ── Search match bar ── */
+    .match-bar-wrap {{ margin: 0.35rem 0 0.9rem 0; }}
+    .match-bar-bg {{
+        background: {border};
         border-radius: 999px;
         height: 6px;
         overflow: hidden;
-    }
-    .match-bar-fill {
-        height: 100%;
-        background: linear-gradient(90deg, #0891b2, #06b6d4);
+    }}
+    .match-bar-fill {{
+        height: 100%%;
+        background: linear-gradient(90deg, {accent}, {accent_dk});
         border-radius: 999px;
-        transition: width 0.4s ease;
-    }
-    .match-label {
-        font-size: 0.72rem;
-        color: #64748b;
-        margin-bottom: 0.2rem;
-    }
+        transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+    }}
+    .match-label {{ font-size: 0.72rem; color: {text_sec}; margin-bottom: 0.2rem; }}
 
     /* ── Action hint ── */
-    .action-hint {
-        font-size: 0.82rem;
-        color: #64748b;
-        margin: 0.4rem 0 0.6rem 0;
-    }
+    .action-hint {{ font-size: 0.82rem; color: {text_sec}; margin: 0.4rem 0 0.6rem 0; }}
 
     /* ── Divider ── */
-    .soft-divider {
+    .soft-divider {{
         border: none;
-        border-top: 1px solid #e2e8f0;
+        border-top: 1px solid {border};
         margin: 0.9rem 0;
-    }
+    }}
+
+    /* ── Keyboard shortcut panel ── */
+    .kbd-grid {{
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem 1.2rem;
+        margin-top: 0.3rem;
+    }}
+    .kbd-row {{
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.8rem;
+        color: {text_sec};
+    }}
+    .kbd {{
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: {surface2};
+        border: 1.5px solid {border};
+        border-radius: 6px;
+        padding: 0.15rem 0.45rem;
+        font-size: 0.76rem;
+        font-weight: 700;
+        color: {text_pri};
+        min-width: 1.6rem;
+        box-shadow: 0 2px 0 {border};
+        font-family: monospace;
+    }}
+
+    /* ── Selectbox dark ── */
+    [data-testid="stSelectbox"] > div > div {{
+        background: {surface} !important;
+        border-color: {border} !important;
+        color: {text_pri} !important;
+    }}
+
+    /* ── Toast notification ── */
+    @keyframes slide-in-right {{
+        from {{ transform: translateX(120px); opacity: 0; }}
+        to   {{ transform: translateX(0);     opacity: 1; }}
+    }}
+    @keyframes slide-out-right {{
+        from {{ transform: translateX(0);     opacity: 1; }}
+        to   {{ transform: translateX(120px); opacity: 0; }}
+    }}
+    .toast {{
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        z-index: 9999;
+        background: {surface};
+        border: 1.5px solid {accent};
+        border-radius: 14px;
+        padding: 0.7rem 1.2rem;
+        font-size: 0.84rem;
+        font-weight: 600;
+        color: {text_pri};
+        box-shadow: 0 12px 40px rgba(8,145,178,0.22);
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        animation: slide-in-right 0.35s ease, slide-out-right 0.35s ease 2.5s forwards;
+    }}
+
+    /* ── Caption / markdown text ── */
+    .stMarkdown p, .stMarkdown span, .stCaption, [data-testid="stCaptionContainer"] {{
+        color: {text_sec} !important;
+    }}
+    p {{ color: {text_pri}; }}
 </style>
         """,
         unsafe_allow_html=True,
@@ -820,7 +1055,13 @@ def fetch_drive_videos(api_key: str, folder_id: str) -> List[Dict]:
     return parsed_files
 
 
-inject_app_css()
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = False
+
+if "topic_filter" not in st.session_state:
+    st.session_state.topic_filter = "All"
+
+inject_app_css(dark=st.session_state.dark_mode)
 
 # ── Password gate ─────────────────────────────────────────────────────────────
 # Set APP_PASSWORD in Streamlit Cloud Secrets (or .streamlit/secrets.toml locally).
@@ -861,9 +1102,22 @@ border:1.5px solid #e2e8f0;border-radius:20px;box-shadow:0 20px 60px rgba(15,23,
 
 # ── End password gate ──────────────────────────────────────────────────────────
 
+dark_icon = "☀️ Light" if st.session_state.dark_mode else "🌙 Dark"
+hero_col, toggle_col = st.columns([5, 1])
+with toggle_col:
+    if st.button(dark_icon, key="dark_mode_toggle", use_container_width=True):
+        st.session_state.dark_mode = not st.session_state.dark_mode
+        st.rerun()
+
 st.markdown(
     """
 <div class="hero-banner">
+    <span class="hero-particle" style="width:18px;height:18px;left:8%;bottom:10%;animation-duration:6s;animation-delay:0s;"></span>
+    <span class="hero-particle" style="width:10px;height:10px;left:20%;bottom:5%;animation-duration:4.5s;animation-delay:1s;"></span>
+    <span class="hero-particle" style="width:14px;height:14px;left:50%;bottom:8%;animation-duration:5s;animation-delay:0.5s;"></span>
+    <span class="hero-particle" style="width:8px;height:8px;left:70%;bottom:12%;animation-duration:7s;animation-delay:2s;"></span>
+    <span class="hero-particle" style="width:20px;height:20px;left:85%;bottom:4%;animation-duration:5.5s;animation-delay:1.5s;"></span>
+    <span class="hero-particle" style="width:12px;height:12px;left:35%;bottom:15%;animation-duration:8s;animation-delay:0.8s;"></span>
     <div class="hero-title">🎥 DevOps Class Recordings</div>
     <p class="hero-sub">Auto-pulled from your Google Drive folder · grouped by date · streams instantly</p>
     <div class="hero-badge">🟢 Live from Drive</div>
@@ -1007,11 +1261,36 @@ with ctrl_r:
         index=0,
     )
 
+# ── Topic filter chips ─────────────────────────────────────────────────────
+# Build unique topic list (capped at 12 most-common for readability)
+from collections import Counter
+topic_counts = Counter(r["topic"] for r in recordings)
+top_topics = ["All"] + [t for t, _ in topic_counts.most_common(12)]
+
+chips_html_parts = ['<div class="chips-row"><span class="chips-label">🏷 Filter:</span>']
+for t in top_topics:
+    active_cls = " active" if st.session_state.topic_filter == t else ""
+    chips_html_parts.append(
+        f'<span class="chip{active_cls}" id="chip_{t.replace(" ","_")}">{t}</span>'
+    )
+chips_html_parts.append("</div>")
+st.markdown("".join(chips_html_parts), unsafe_allow_html=True)
+
+# Chip selector using a horizontal radio (hidden label, styled as buttons)
+_chip_cols = st.columns(min(len(top_topics), 7))
+for _ci, _topic in enumerate(top_topics):
+    with _chip_cols[_ci % len(_chip_cols)]:
+        _btn_style = "primary" if st.session_state.topic_filter == _topic else "secondary"
+        _icon = "✓ " if st.session_state.topic_filter == _topic else ""
+        if st.button(f"{_icon}{_topic}", key=f"chip_btn_{_ci}", use_container_width=True, type=_btn_style):
+            st.session_state.topic_filter = _topic
+            st.rerun()
+
 filtered = [
     item
     for item in recordings
-    if search.lower() in item["topic"].lower()
-    or search.lower() in item["file_name"].lower()
+    if (search.lower() in item["topic"].lower() or search.lower() in item["file_name"].lower())
+    and (st.session_state.topic_filter == "All" or item["topic"] == st.session_state.topic_filter)
 ]
 
 if sort_order == "📅 Oldest First":
@@ -1021,7 +1300,7 @@ elif sort_order == "🔤 A → Z":
 # "Newest First" is already the default sort from fetch_drive_videos
 
 # ── Match progress bar ─────────────────────────────────────────────────────
-if search:
+if search or st.session_state.topic_filter != "All":
     pct = int(len(filtered) / max(len(recordings), 1) * 100)
     st.markdown(
         f"""
@@ -1058,6 +1337,12 @@ if "watched_ids" not in st.session_state:
 if "last_watched_id" not in st.session_state:
     st.session_state.last_watched_id = None
 
+if "_toast" not in st.session_state:
+    st.session_state._toast = None
+
+if "show_kbd" not in st.session_state:
+    st.session_state.show_kbd = False
+
 # Keep favorites clean in case items disappear from Drive.
 valid_ids = {item["id"] for item in recordings}
 st.session_state.favorite_ids = [fid for fid in st.session_state.favorite_ids if fid in valid_ids]
@@ -1088,6 +1373,38 @@ with left:
         if st.button("⏯ Resume Last Watched", key="btn_resume_last_watched", use_container_width=True):
             st.session_state.selected_file_id = st.session_state.last_watched_id
             st.rerun()
+
+    # ── Watch progress donut ring ──────────────────────────────────────────
+    _total = len(recordings)
+    _watched = len(st.session_state.watched_ids)
+    _pct_w = _watched / _total if _total else 0
+    _radius = 26
+    _circ = 2 * 3.14159 * _radius
+    _dash = _pct_w * _circ
+    _gap = _circ - _dash
+    _streak = len(st.session_state.watched_ids)
+    _pct_txt = f"{int(_pct_w * 100)}%"
+    st.markdown(
+        f"""
+<div class="progress-ring-wrap">
+  <svg class="progress-ring-svg" width="68" height="68" viewBox="0 0 68 68">
+    <circle class="progress-ring-bg" cx="34" cy="34" r="{_radius}"/>
+    <circle class="progress-ring-fill"
+      cx="34" cy="34" r="{_radius}"
+      stroke-dasharray="{_dash:.1f} {_gap:.1f}"
+    />
+    <text x="34" y="30" text-anchor="middle" class="progress-ring-pct">{_pct_txt}</text>
+    <text x="34" y="43" text-anchor="middle" class="progress-ring-text">watched</text>
+  </svg>
+  <div class="ring-detail">
+    <p class="ring-detail-title">Course Progress</p>
+    <p class="ring-detail-sub">{_watched} of {_total} classes watched</p>
+    {"<p class='ring-streak'>🔥 " + str(_streak) + " classes completed</p>" if _streak else ""}
+  </div>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     st.markdown('<hr class="soft-divider">', unsafe_allow_html=True)
 
@@ -1247,7 +1564,7 @@ with right:
 
     is_favorite = selected["id"] in st.session_state.favorite_ids
     is_watched = selected["id"] in st.session_state.watched_ids
-    action_col_l, action_col_r = st.columns(2)
+    action_col_l, action_col_r, action_col_kbd = st.columns([2, 2, 1])
     with action_col_l:
         favorite_btn_label = "⭐ Unpin from top" if is_favorite else "☆ Pin this class"
         if st.button(favorite_btn_label, key=f"btn_favorite_toggle_{selected['id']}", use_container_width=True):
@@ -1255,8 +1572,10 @@ with right:
                 st.session_state.favorite_ids = [
                     fid for fid in st.session_state.favorite_ids if fid != selected["id"]
                 ]
+                st.session_state._toast = ("📌 Unpinned", selected["topic"])
             else:
                 st.session_state.favorite_ids = [selected["id"], *st.session_state.favorite_ids]
+                st.session_state._toast = ("⭐ Pinned!", selected["topic"])
             st.rerun()
     with action_col_r:
         watched_btn_label = "✅ Mark Unwatched" if is_watched else "☑ Mark Watched"
@@ -1267,10 +1586,47 @@ with right:
                 ]
                 if st.session_state.last_watched_id == selected["id"]:
                     st.session_state.last_watched_id = st.session_state.watched_ids[0] if st.session_state.watched_ids else None
+                st.session_state._toast = ("↩ Unmarked", selected["topic"])
             else:
                 st.session_state.watched_ids = [selected["id"], *st.session_state.watched_ids]
                 st.session_state.last_watched_id = selected["id"]
+                st.session_state._toast = ("✅ Watched!", selected["topic"])
             st.rerun()
+    with action_col_kbd:
+        if st.button("⌨ Keys", key="btn_show_kbd", use_container_width=True):
+            st.session_state.show_kbd = not st.session_state.get("show_kbd", False)
+            st.rerun()
+
+    # ── Toast notification ────────────────────────────────────────────────
+    if st.session_state.get("_toast"):
+        _toast_icon, _toast_msg = st.session_state._toast
+        st.markdown(
+            f'<div class="toast">{_toast_icon} <span>{_toast_msg[:40]}</span></div>',
+            unsafe_allow_html=True,
+        )
+        st.session_state._toast = None
+
+    # ── Keyboard shortcuts panel ──────────────────────────────────────────
+    if st.session_state.get("show_kbd", False):
+        st.markdown(
+            f"""
+<div style="background:{'#1e293b' if st.session_state.dark_mode else '#f8fafc'};
+border:1.5px solid {'#334155' if st.session_state.dark_mode else '#e2e8f0'};
+border-radius:14px;padding:0.9rem 1.2rem;margin-bottom:0.8rem;">
+  <p style="font-size:0.82rem;font-weight:700;color:{'#94a3b8' if st.session_state.dark_mode else '#64748b'};
+  text-transform:uppercase;letter-spacing:0.06em;margin:0 0 0.6rem 0">⌨ Keyboard Shortcuts</p>
+  <div class="kbd-grid">
+    <div class="kbd-row"><kbd class="kbd">N</kbd> Next class</div>
+    <div class="kbd-row"><kbd class="kbd">P</kbd> Previous class</div>
+    <div class="kbd-row"><kbd class="kbd">W</kbd> Toggle watched</div>
+    <div class="kbd-row"><kbd class="kbd">F</kbd> Toggle pin</div>
+    <div class="kbd-row"><kbd class="kbd">D</kbd> Dark mode</div>
+    <div class="kbd-row"><kbd class="kbd">R</kbd> Refresh Drive</div>
+  </div>
+</div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     # Metadata pill row
     created_fmt = ""
