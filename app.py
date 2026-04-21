@@ -253,7 +253,7 @@ def inject_app_css(dark: bool = False) -> None:
         stroke: {accent};
         stroke-width: 6;
         stroke-linecap: round;
-        transform-origin: 50%% 50%%;
+        transform-origin: 50% 50%;
         transform: rotate(-90deg);
         transition: stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1);
     }}
@@ -497,7 +497,7 @@ def inject_app_css(dark: bool = False) -> None:
     .drive-player-wrap {{
         position: relative;
         width: 100%;
-        padding-bottom: 56.25%%;
+        padding-bottom: 56.25%;
         height: 0;
         overflow: hidden;
         border-radius: 18px;
@@ -512,8 +512,8 @@ def inject_app_css(dark: bool = False) -> None:
     .drive-player-wrap iframe {{
         position: absolute;
         top: 0; left: 0;
-        width: 100%%;
-        height: 100%%;
+        width: 100%;
+        height: 100%;
         border: 0;
         border-radius: 16px;
     }}
@@ -559,7 +559,7 @@ def inject_app_css(dark: bool = False) -> None:
         overflow: hidden;
     }}
     .match-bar-fill {{
-        height: 100%%;
+        height: 100%;
         background: linear-gradient(90deg, {accent}, {accent_dk});
         border-radius: 999px;
         transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
