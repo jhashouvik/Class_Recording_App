@@ -1316,10 +1316,24 @@ with ctrl_r:
     )
 
 # ── Topic filter chips ─────────────────────────────────────────────────────
-# Build unique topic list (capped at 12 most-common for readability)
-from collections import Counter
-topic_counts = Counter(r["topic"] for r in recordings)
-top_topics = ["All"] + [t for t, _ in topic_counts.most_common(12)]
+PREDEFINED_TOPICS = [
+    "All",
+    "Docker",
+    "Terraform",
+    "Kubernetes",
+    "Virtual Network",
+    "Ansible",
+    "GIT",
+    "CICD",
+    "Board",
+    "Linux",
+    "Infra",
+    "Virtual Machine",
+    "Network",
+    "Entra ID",
+    "Cloud Basic",
+]
+top_topics = PREDEFINED_TOPICS
 
 # Single horizontal radio styled as chips
 _current_idx = top_topics.index(st.session_state.topic_filter) if st.session_state.topic_filter in top_topics else 0
@@ -1338,7 +1352,11 @@ filtered = [
     item
     for item in recordings
     if (search.lower() in item["topic"].lower() or search.lower() in item["file_name"].lower())
-    and (st.session_state.topic_filter == "All" or item["topic"] == st.session_state.topic_filter)
+    and (
+        st.session_state.topic_filter == "All"
+        or st.session_state.topic_filter.lower() in item["topic"].lower()
+        or st.session_state.topic_filter.lower() in item["file_name"].lower()
+    )
 ]
 
 if sort_order == "📅 Oldest First":
