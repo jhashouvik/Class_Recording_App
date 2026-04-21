@@ -440,6 +440,7 @@ def inject_app_css(dark: bool = False) -> None:
         transition: background 0.18s, border-color 0.18s, transform 0.15s, box-shadow 0.18s !important;
         transform: none !important;
         line-height: normal !important;
+        gap: 0 !important;
     }}
     div[data-testid="stRadio"] label:hover {{
         background: {accent_dk}22 !important;
@@ -458,6 +459,10 @@ def inject_app_css(dark: bool = False) -> None:
         position: absolute !important;
         width: 1px !important; height: 1px !important;
         opacity: 0 !important; margin: 0 !important; padding: 0 !important;
+        pointer-events: none !important;
+    }}
+    div[data-testid="stRadio"] label > div:first-child {{
+        display: none !important;
     }}
 
     /* ── Buttons ── */
