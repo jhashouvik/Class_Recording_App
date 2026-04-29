@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import socket
@@ -1110,6 +1111,35 @@ def fetch_drive_videos(api_key: str, folder_id: str) -> List[Dict]:
     return parsed_files
 
 
+def load_youtube_videos() -> List[Dict]:
+    """Load manually curated YouTube video entries from youtube_videos.json."""
+    json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "youtube_videos.json")
+    if not os.path.exists(json_path):
+        return []
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            entries = json.load(f)
+    except Exception:
+        return []
+    results = []
+    for entry in entries:
+        file_name = entry.get("file_name", "")
+        yt_url = entry.get("youtube_url", "")
+        yt_id = yt_url.split("v=")[-1].split("&")[0] if "v=" in yt_url else ""
+        parsed = parse_recording_name(file_name)
+        results.append({
+            "id": f"yt_{yt_id}",
+            "file_name": file_name,
+            "drive_link": "",
+            "youtube_url": yt_url,
+            "youtube_id": yt_id,
+            "created_time": entry.get("created_time", ""),
+            "source": "youtube",
+            **parsed,
+        })
+    return results
+
+
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = False
 
@@ -1269,6 +1299,12 @@ except requests.HTTPError as exc:
 except Exception as exc:
     st.error(f"Could not load recordings: {exc}")
     st.stop()
+
+recordings = sorted(
+    recordings + load_youtube_videos(),
+    key=lambda x: (x.get("date", ""), x.get("file_name", "")),
+    reverse=True,
+)
 
 if not recordings:
     st.warning("No video files found in the selected Google Drive folder.")
@@ -1547,7 +1583,8 @@ with left:
             except Exception:
                 pass
         watched_prefix = "✅ " if item["id"] in st.session_state.watched_ids else ""
-        base = f"{watched_prefix}{item['topic']}{'  ·  ' + date_short if date_short else ''}"
+        yt_badge = "▶YT  " if item.get("source") == "youtube" else ""
+        base = f"{watched_prefix}{yt_badge}{item['topic']}{'  ·  ' + date_short if date_short else ''}"
         if base in seen_labels:
             seen_labels[base] += 1
             label = f"{base} ({seen_labels[base]})"
@@ -1616,7 +1653,7 @@ with right:
     """
     st.markdown(meta_html, unsafe_allow_html=True)
 
-    preview_url = drive_preview_url(selected["drive_link"])
+    preview_url = "" if selected.get("source") == "youtube" else drive_preview_url(selected["drive_link"])
     file_id = selected["id"]
 
     # Initialise play-request state
@@ -1627,7 +1664,25 @@ with right:
     if st.session_state.play_requested_id != file_id:
         st.session_state.play_requested_id = None
 
-    if _proxy_available():
+    if selected.get("source") == "youtube":
+        yt_url = selected.get("youtube_url", "")
+        yt_id = selected.get("youtube_id", "")
+        yt_start = 0
+        if "t=" in yt_url:
+            try:
+                yt_start = int(yt_url.split("t=")[-1].rstrip("s"))
+            except Exception:
+                yt_start = 0
+        embed_url = f"https://www.youtube.com/embed/{yt_id}?start={yt_start}&rel=0"
+        st.markdown(
+            f'<div class="drive-player-wrap"><iframe src="{embed_url}" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe></div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f'<p class="action-hint">▶ YouTube video — <a href="{yt_url}" target="_blank">Open on YouTube ↗</a></p>',
+            unsafe_allow_html=True,
+        )
+    elif _proxy_available():
         # Local dev: stream via range-proxy (fast, no full download)
         try:
             stream_url = drive_stream_playback_url(file_id, API_KEY)
