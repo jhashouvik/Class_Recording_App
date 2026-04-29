@@ -985,6 +985,7 @@ def format_topic(text: str) -> str:
         "kubernetes": "Kubernetes",
         "linux": "Linux",
         "devops": "DevOps",
+        "yt": "YT",
     }
 
     words = text.split()
@@ -1583,8 +1584,7 @@ with left:
             except Exception:
                 pass
         watched_prefix = "✅ " if item["id"] in st.session_state.watched_ids else ""
-        yt_badge = "▶YT  " if item.get("source") == "youtube" else ""
-        base = f"{watched_prefix}{yt_badge}{item['topic']}{'  ·  ' + date_short if date_short else ''}"
+        base = f"{watched_prefix}{item['topic']}{'  ·  ' + date_short if date_short else ''}"
         if base in seen_labels:
             seen_labels[base] += 1
             label = f"{base} ({seen_labels[base]})"
